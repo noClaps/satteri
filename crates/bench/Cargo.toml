@@ -1,0 +1,26 @@
+[package]
+name = "tryckeri-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[[bench]]
+name = "pipeline"
+harness = false
+
+[[bin]]
+name = "profile_parse"
+path = "src/profile_parse.rs"
+
+[dependencies]
+parser = { path = "../parser" }
+
+[dev-dependencies]
+divan = "0.1"
+mdast-arena = { path = "../mdast-arena" }
+tryckeri-hast = { path = "../hast" }
+mdxjs = { path = "../mdxjs-rs" }
+oxc_allocator = { workspace = true }
+rustc-hash = "2"
+pulldown-cmark = { path = "../pulldown-cmark" }
+parser = { path = "../parser" }

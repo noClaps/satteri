@@ -1,0 +1,32 @@
+{
+  "name": "@tryckeri/core",
+  "version": "0.1.0",
+  "description": "High-performance Markdown processing with Rust arena backend",
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./arena-reader": "./src/arena-reader.ts"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test 'test/**/*.test.ts'",
+    "bench": "vitest bench --run"
+  },
+  "devDependencies": {
+    "@mdx-js/mdx": "^3.1.1",
+    "mdast-util-to-string": "^4.0.0",
+    "rehype-stringify": "^10.0.1",
+    "remark": "^15.0.1",
+    "remark-parse": "^11.0.0",
+    "remark-rehype": "^11.1.2",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.1.0",
+    "vitest": "^3"
+  },
+  "packageManager": "pnpm@10.0.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

@@ -1,0 +1,7 @@
+[package]
+name = "mdast-arena"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+unicode-id = "0.3"

@@ -1,0 +1,7 @@
+[package]
+name = "tryckeri-plugin-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mdast-arena = { path = "../mdast-arena" }

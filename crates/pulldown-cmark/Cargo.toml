@@ -1,0 +1,26 @@
+[package]
+name = "pulldown-cmark"
+version = "0.13.1"
+authors = [
+    "Raph Levien <raph.levien@gmail.com>",
+    "Marcus Klaas de Vries <mail@marcusklaas.nl>",
+]
+license = "MIT"
+description = "A pull parser for CommonMark (vendored fork with MDX extensions)"
+edition = "2021"
+publish = false
+
+build = "build.rs"
+
+[dependencies]
+bitflags = "2"
+unicase = "2.6"
+memchr = { version = "2.5", default-features = false }
+serde = { version = "1.0", optional = true, features = ["derive"] }
+pulldown-cmark-escape = { path = "../pulldown-cmark-escape", version = "0.11", optional = true }
+
+[features]
+default = ["std", "html"]
+std = ["pulldown-cmark-escape?/std", "memchr/std"]
+simd = ["pulldown-cmark-escape?/simd"]
+html = ["pulldown-cmark-escape"]

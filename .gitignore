@@ -1,0 +1,6 @@
+target
+node_modules
+*.node
+perf.data
+perf.data.old
+flamegraph.svg

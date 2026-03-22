@@ -1,0 +1,72 @@
+// Shared MDAST types for the tryckeri JS layer.
+
+export interface Point {
+  offset: number;
+  line: number;
+  column: number;
+}
+
+export interface Position {
+  start: Point;
+  end: Point;
+}
+
+// Base for all materialized MDAST nodes.
+// Type-specific properties are added lazily by the materializer.
+export interface MdastNode {
+  type: string;
+  position: Position;
+  /** Side-channel data (hProperties, id, etc.). Backed by DataMap. */
+  data: Record<string, unknown> | null;
+  /** Non-enumerable arena node ID. */
+  _nodeId: number;
+  // Optional on parent nodes
+  children?: MdastNode[];
+  // Optional type-specific fields (present depending on type)
+  depth?: number;
+  value?: string;
+  lang?: string | null;
+  meta?: string | null;
+  url?: string;
+  title?: string | null;
+  alt?: string;
+  ordered?: boolean;
+  start?: number | null;
+  spread?: boolean;
+  checked?: boolean | null;
+  identifier?: string;
+  label?: string;
+  referenceType?: string;
+  align?: (string | null)[];
+  name?: string | null;
+}
+
+export interface StringRefRaw {
+  offset: number;
+  len: number;
+}
+
+export interface ArenaNodeRaw {
+  id: number;
+  type: number;
+  typeName: string;
+  parent: number;
+  position: Position;
+  childrenStart: number;
+  childrenCount: number;
+  dataOffset: number;
+  dataLen: number;
+}
+
+export interface BufferHeader {
+  version: number;
+  nodeStructSize: number;
+  nodeCount: number;
+  nodesOffset: number;
+  childrenCount: number;
+  childrenOffset: number;
+  typeDataLen: number;
+  typeDataOffset: number;
+  sourceLen: number;
+  sourceOffset: number;
+}

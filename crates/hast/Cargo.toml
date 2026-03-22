@@ -1,0 +1,10 @@
+[package]
+name = "tryckeri-hast"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mdast-arena = { path = "../mdast-arena" }
+
+[dev-dependencies]
+parser = { path = "../parser" }

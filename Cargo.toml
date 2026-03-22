@@ -1,0 +1,23 @@
+[workspace]
+members = [
+    "crates/mdast-arena",
+    "crates/bench",
+    "crates/hast",
+    "crates/parser",
+    "crates/napi-binding",
+    "crates/plugin-api",
+    "crates/mdxjs-rs",
+    "crates/pulldown-cmark",
+    "crates/pulldown-cmark-escape",
+]
+resolver = "2"
+
+[workspace.dependencies]
+oxc_allocator = "0.121.0"
+oxc_ast = "0.121.0"
+oxc_ast_visit = "0.121.0"
+oxc_codegen = "0.121.0"
+oxc_diagnostics = "0.121.0"
+oxc_parser = "0.121.0"
+oxc_span = "0.121.0"
+oxc_syntax = "0.121.0"

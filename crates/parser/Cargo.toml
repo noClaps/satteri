@@ -1,0 +1,12 @@
+[package]
+name = "parser"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+mdast-arena = { path = "../mdast-arena" }
+pulldown-cmark = { path = "../pulldown-cmark" }
+tryckeri-hast = { path = "../hast" }
+
+[dev-dependencies]

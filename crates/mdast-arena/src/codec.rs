@@ -1,0 +1,420 @@
+//! Codec helpers: type-specific data structs and encode/decode functions.
+//!
+//! These structs are serialized into `Arena::type_data` as raw bytes using
+//! `#[repr(C)]` layout. Each `encode_*` function returns the bytes to store,
+//! and each `decode_*` function reads them back.
+
+use crate::node::StringRef;
+
+// ---------------------------------------------------------------------------
+// Type-specific data structs
+// ---------------------------------------------------------------------------
+
+/// Data for Heading nodes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct HeadingData {
+    pub depth: u8,
+}
+
+/// Data for Link and Definition nodes.
+/// `title.len == 0` means no title.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct LinkData {
+    pub url: StringRef,
+    pub title: StringRef,
+}
+
+/// Data for Image nodes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct ImageData {
+    pub url: StringRef,
+    pub alt: StringRef,
+    pub title: StringRef,
+}
+
+/// Data for Code nodes.
+/// `fence_char`: e.g. b'`' or b'~'.
+/// `value`: points to the code content in the source string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct CodeData {
+    pub lang: StringRef,
+    pub meta: StringRef,
+    pub value: StringRef,
+    pub fence_char: u8,
+    pub _pad: [u8; 3],
+}
+
+/// Data for List nodes.
+/// `start` is the starting number for ordered lists (ignored for unordered).
+///
+/// Field order is chosen to avoid implicit padding:
+///   start(u32) @ 0, ordered(bool) @ 4, spread(bool) @ 5, _pad(2) @ 6 → 8 bytes total.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct ListData {
+    pub start: u32,
+    pub ordered: bool,
+    pub spread: bool,
+    pub _pad: [u8; 2],
+}
+
+/// Data for ListItem nodes.
+/// `checked`: 0 = unchecked, 1 = checked, 2 = not a task item.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct ListItemData {
+    pub checked: u8,
+    pub spread: bool,
+}
+
+/// Data for Table nodes.
+/// Immediately followed in type_data by `align_count` bytes:
+///   0=None, 1=Left, 2=Right, 3=Center
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct TableData {
+    pub align_count: u32,
+}
+
+/// Alignment values for table columns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ColumnAlign {
+    None = 0,
+    Left = 1,
+    Right = 2,
+    Center = 3,
+}
+
+impl ColumnAlign {
+    pub fn from_u8(v: u8) -> Option<Self> {
+        match v {
+            0 => Some(ColumnAlign::None),
+            1 => Some(ColumnAlign::Left),
+            2 => Some(ColumnAlign::Right),
+            3 => Some(ColumnAlign::Center),
+            _ => None,
+        }
+    }
+}
+
+/// Data for LinkReference, ImageReference, FootnoteReference nodes.
+/// `reference_kind`: 0=Shortcut, 1=Collapsed, 2=Full.
+///
+/// Explicit _pad avoids implicit trailing bytes: 8+8+1+3 = 20 bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct ReferenceData {
+    pub identifier: StringRef,
+    pub label: StringRef,
+    pub reference_kind: u8,
+    pub _pad: [u8; 3],
+}
+
+/// Data for FootnoteDefinition nodes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct FootnoteDefinitionData {
+    pub identifier: StringRef,
+    pub label: StringRef,
+}
+
+/// Data for Definition nodes: url, optional title, identifier, label.
+/// `title.len == 0` means no title.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct DefinitionData {
+    pub url: StringRef,
+    pub title: StringRef,
+    pub identifier: StringRef,
+    pub label: StringRef,
+}
+
+/// Data for Math (flow) nodes.
+/// `meta.len == 0` means no meta.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct MathData {
+    pub meta: StringRef,
+    pub value: StringRef,
+}
+
+/// Data for MdxJsxFlowElement and MdxJsxTextElement.
+/// `name.len == 0` means a fragment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct MdxJsxElementData {
+    pub name: StringRef,
+}
+
+/// Data for MdxFlowExpression, MdxTextExpression, MdxjsEsm.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(C)]
+pub struct ExpressionData {
+    pub value: StringRef,
+}
+
+// ---------------------------------------------------------------------------
+// Generic byte-cast helpers
+// ---------------------------------------------------------------------------
+
+/// Safety: T must be #[repr(C)] and contain no padding with undefined bytes.
+unsafe fn struct_to_bytes<T: Copy>(val: &T) -> &[u8] {
+    std::slice::from_raw_parts(val as *const T as *const u8, std::mem::size_of::<T>())
+}
+
+/// Safety: bytes must be at least size_of::<T>() bytes, properly aligned data
+/// for type T (we copy so alignment doesn't matter).
+unsafe fn bytes_to_struct<T: Copy>(bytes: &[u8]) -> T {
+    assert!(
+        bytes.len() >= std::mem::size_of::<T>(),
+        "buffer too small: need {} bytes, got {}",
+        std::mem::size_of::<T>(),
+        bytes.len()
+    );
+    let mut val = std::mem::MaybeUninit::<T>::uninit();
+    std::ptr::copy_nonoverlapping(
+        bytes.as_ptr(),
+        val.as_mut_ptr() as *mut u8,
+        std::mem::size_of::<T>(),
+    );
+    val.assume_init()
+}
+
+// ---------------------------------------------------------------------------
+// HeadingData
+// ---------------------------------------------------------------------------
+
+pub fn encode_heading_data(depth: u8) -> Vec<u8> {
+    let d = HeadingData { depth };
+    unsafe { struct_to_bytes(&d) }.to_vec()
+}
+
+pub fn decode_heading_data(bytes: &[u8]) -> HeadingData {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+// ---------------------------------------------------------------------------
+// LinkData
+// ---------------------------------------------------------------------------
+
+pub fn encode_link_data(url: StringRef, title: StringRef) -> Vec<u8> {
+    let d = LinkData { url, title };
+    unsafe { struct_to_bytes(&d) }.to_vec()
+}
+
+pub fn decode_link_data(bytes: &[u8]) -> LinkData {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+// ---------------------------------------------------------------------------
+// ImageData
+// ---------------------------------------------------------------------------
+
+pub fn encode_image_data(url: StringRef, alt: StringRef, title: StringRef) -> Vec<u8> {
+    let d = ImageData { url, alt, title };
+    unsafe { struct_to_bytes(&d) }.to_vec()
+}
+
+pub fn decode_image_data(bytes: &[u8]) -> ImageData {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+// ---------------------------------------------------------------------------
+// CodeData
+// ---------------------------------------------------------------------------
+
+pub fn encode_code_data(lang: StringRef, meta: StringRef, value: StringRef, fence_char: u8) -> Vec<u8> {
+    let d = CodeData { lang, meta, value, fence_char, _pad: [0u8; 3] };
+    unsafe { struct_to_bytes(&d) }.to_vec()
+}
+
+pub fn decode_code_data(bytes: &[u8]) -> CodeData {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+// ---------------------------------------------------------------------------
+// ListData
+// ---------------------------------------------------------------------------
+
+pub fn encode_list_data(ordered: bool, start: u32, spread: bool) -> Vec<u8> {
+    let d = ListData { start, ordered, spread, _pad: [0; 2] };
+    unsafe { struct_to_bytes(&d) }.to_vec()
+}
+
+pub fn decode_list_data(bytes: &[u8]) -> ListData {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+// ---------------------------------------------------------------------------
+// ListItemData
+// ---------------------------------------------------------------------------
+
+pub fn encode_list_item_data(checked: u8, spread: bool) -> Vec<u8> {
+    let d = ListItemData { checked, spread };
+    unsafe { struct_to_bytes(&d) }.to_vec()
+}
+
+pub fn decode_list_item_data(bytes: &[u8]) -> ListItemData {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+// ---------------------------------------------------------------------------
+// TableData (header + alignment bytes)
+// ---------------------------------------------------------------------------
+
+pub fn encode_table_data(alignments: &[ColumnAlign]) -> Vec<u8> {
+    let header = TableData { align_count: alignments.len() as u32 };
+    let mut bytes = unsafe { struct_to_bytes(&header) }.to_vec();
+    for a in alignments {
+        bytes.push(*a as u8);
+    }
+    bytes
+}
+
+pub fn decode_table_data(bytes: &[u8]) -> (TableData, Vec<ColumnAlign>) {
+    let header: TableData = unsafe { bytes_to_struct(bytes) };
+    let count = header.align_count as usize;
+    let struct_size = std::mem::size_of::<TableData>();
+    let align_bytes = &bytes[struct_size..struct_size + count];
+    let alignments = align_bytes
+        .iter()
+        .map(|&b| ColumnAlign::from_u8(b).unwrap_or(ColumnAlign::None))
+        .collect();
+    (header, alignments)
+}
+
+// ---------------------------------------------------------------------------
+// ReferenceData
+// ---------------------------------------------------------------------------
+
+pub fn encode_reference_data(
+    identifier: StringRef,
+    label: StringRef,
+    reference_kind: u8,
+) -> Vec<u8> {
+    let d = ReferenceData { identifier, label, reference_kind, _pad: [0; 3] };
+    unsafe { struct_to_bytes(&d) }.to_vec()
+}
+
+pub fn decode_reference_data(bytes: &[u8]) -> ReferenceData {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+// ---------------------------------------------------------------------------
+// FootnoteDefinitionData
+// ---------------------------------------------------------------------------
+
+pub fn encode_footnote_definition_data(identifier: StringRef, label: StringRef) -> Vec<u8> {
+    let d = FootnoteDefinitionData { identifier, label };
+    unsafe { struct_to_bytes(&d) }.to_vec()
+}
+
+pub fn decode_footnote_definition_data(bytes: &[u8]) -> FootnoteDefinitionData {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+// ---------------------------------------------------------------------------
+// MdxJsxElementData
+// ---------------------------------------------------------------------------
+
+pub fn encode_mdx_jsx_element_data(name: StringRef) -> Vec<u8> {
+    let d = MdxJsxElementData { name };
+    unsafe { struct_to_bytes(&d) }.to_vec()
+}
+
+pub fn decode_mdx_jsx_element_data(bytes: &[u8]) -> MdxJsxElementData {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+// ---------------------------------------------------------------------------
+// ExpressionData
+// ---------------------------------------------------------------------------
+
+pub fn encode_expression_data(value: StringRef) -> Vec<u8> {
+    let d = ExpressionData { value };
+    unsafe { struct_to_bytes(&d) }.to_vec()
+}
+
+pub fn decode_expression_data(bytes: &[u8]) -> ExpressionData {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+// ---------------------------------------------------------------------------
+// DefinitionData
+// ---------------------------------------------------------------------------
+
+pub fn encode_definition_data(
+    url: StringRef,
+    title: StringRef,
+    identifier: StringRef,
+    label: StringRef,
+) -> Vec<u8> {
+    let d = DefinitionData { url, title, identifier, label };
+    unsafe { struct_to_bytes(&d) }.to_vec()
+}
+
+pub fn decode_definition_data(bytes: &[u8]) -> DefinitionData {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+// ---------------------------------------------------------------------------
+// MathData
+// ---------------------------------------------------------------------------
+
+pub fn encode_math_data(meta: StringRef, value: StringRef) -> Vec<u8> {
+    let d = MathData { meta, value };
+    unsafe { struct_to_bytes(&d) }.to_vec()
+}
+
+pub fn decode_math_data(bytes: &[u8]) -> MathData {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+// ---------------------------------------------------------------------------
+// StringRef as data (for Text, InlineCode, Html, Yaml, Toml, InlineMath)
+// ---------------------------------------------------------------------------
+
+/// Encode a StringRef directly as the type data (for Text, InlineCode, Html).
+pub fn encode_string_ref_data(sr: StringRef) -> Vec<u8> {
+    unsafe { struct_to_bytes(&sr) }.to_vec()
+}
+
+pub fn decode_string_ref_data(bytes: &[u8]) -> StringRef {
+    unsafe { bytes_to_struct(bytes) }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn heading_round_trip() {
+        let bytes = encode_heading_data(3);
+        let d = decode_heading_data(&bytes);
+        assert_eq!(d.depth, 3);
+    }
+
+    #[test]
+    fn link_round_trip() {
+        let url = StringRef::new(0, 10);
+        let title = StringRef::new(11, 5);
+        let bytes = encode_link_data(url, title);
+        let d = decode_link_data(&bytes);
+        assert_eq!(d.url, url);
+        assert_eq!(d.title, title);
+    }
+
+    #[test]
+    fn table_round_trip() {
+        let aligns = vec![ColumnAlign::Left, ColumnAlign::Right, ColumnAlign::Center];
+        let bytes = encode_table_data(&aligns);
+        let (hdr, decoded) = decode_table_data(&bytes);
+        assert_eq!(hdr.align_count, 3);
+        assert_eq!(decoded, aligns);
+    }
+}

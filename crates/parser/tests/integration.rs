@@ -5,7 +5,7 @@ use parser::{parse, ParseOptions};
 #[test]
 fn full_pipeline_heading_to_html() {
     let arena = parse("# Hello world\n", &ParseOptions::default());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(html.contains("<h1>"), "expected <h1>, got: {html}");
     assert!(html.contains("Hello world"), "expected text, got: {html}");
 }
@@ -13,7 +13,7 @@ fn full_pipeline_heading_to_html() {
 #[test]
 fn full_pipeline_paragraph_to_html() {
     let arena = parse("hello **world**\n", &ParseOptions::default());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(html.contains("<p>"), "expected <p>, got: {html}");
     assert!(html.contains("<strong>"), "expected <strong>, got: {html}");
 }
@@ -21,7 +21,7 @@ fn full_pipeline_paragraph_to_html() {
 #[test]
 fn full_pipeline_list_to_html() {
     let arena = parse("- a\n- b\n- c\n", &ParseOptions::default());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(html.contains("<ul>"), "expected <ul>, got: {html}");
     assert!(html.contains("<li>"), "expected <li>, got: {html}");
 }
@@ -29,7 +29,7 @@ fn full_pipeline_list_to_html() {
 #[test]
 fn full_pipeline_code_block_to_html() {
     let arena = parse("```rust\nfn main() {}\n```\n", &ParseOptions::default());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(html.contains("<pre>"), "expected <pre>, got: {html}");
     assert!(html.contains("<code"), "expected <code>, got: {html}");
     assert!(
@@ -41,7 +41,7 @@ fn full_pipeline_code_block_to_html() {
 #[test]
 fn full_pipeline_link_to_html() {
     let arena = parse("[click](https://example.com)\n", &ParseOptions::default());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(
         html.contains("href=\"https://example.com\""),
         "expected href, got: {html}"
@@ -52,7 +52,7 @@ fn full_pipeline_link_to_html() {
 #[test]
 fn full_pipeline_image_to_html() {
     let arena = parse("![alt](img.png)\n", &ParseOptions::default());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(
         html.contains("src=\"img.png\""),
         "expected src, got: {html}"
@@ -62,7 +62,7 @@ fn full_pipeline_image_to_html() {
 #[test]
 fn full_pipeline_blockquote_to_html() {
     let arena = parse("> quoted text\n", &ParseOptions::default());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(
         html.contains("<blockquote>"),
         "expected blockquote, got: {html}"
@@ -75,7 +75,7 @@ fn full_pipeline_html_block_to_html() {
         "<div>raw html</div>\n\nparagraph\n",
         &ParseOptions::default(),
     );
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(
         html.contains("<div>raw html</div>"),
         "expected raw html, got: {html}"
@@ -85,14 +85,14 @@ fn full_pipeline_html_block_to_html() {
 #[test]
 fn full_pipeline_inline_code_to_html() {
     let arena = parse("use `code` here\n", &ParseOptions::default());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(html.contains("<code>"), "expected inline code, got: {html}");
 }
 
 #[test]
 fn full_pipeline_emphasis_to_html() {
     let arena = parse("*em* and **strong**\n", &ParseOptions::default());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(html.contains("<em>"), "expected em, got: {html}");
     assert!(html.contains("<strong>"), "expected strong, got: {html}");
 }
@@ -100,14 +100,14 @@ fn full_pipeline_emphasis_to_html() {
 #[test]
 fn full_pipeline_thematic_break_to_html() {
     let arena = parse("---\n", &ParseOptions::default());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(html.contains("<hr"), "expected hr, got: {html}");
 }
 
 #[test]
 fn full_pipeline_ordered_list_to_html() {
     let arena = parse("1. first\n2. second\n", &ParseOptions::default());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(html.contains("<ol>"), "expected <ol>, got: {html}");
 }
 
@@ -117,7 +117,7 @@ fn full_pipeline_table_to_html() {
         "| a | b |\n|---|---|\n| 1 | 2 |\n",
         &ParseOptions::default(),
     );
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(html.contains("<table>"), "expected <table>, got: {html}");
 }
 
@@ -126,7 +126,7 @@ fn full_pipeline_buffer_roundtrip_then_hast() {
     let arena = parse("# Hello\n\nworld\n", &ParseOptions::default());
     let buf = arena.to_raw_buffer();
     // Use the buffer path (simulating the NAPI path).
-    let html_buf = tryckeri_hast::arena_to_hast_buffer(&buf).unwrap();
+    let html_buf = tryckeri_hast::mdast_to_hast_buffer(&buf).unwrap();
     let html = tryckeri_hast::hast_buffer_to_html(&html_buf).unwrap();
     assert!(
         html.contains("<h1>"),
@@ -154,7 +154,7 @@ console.log("hello");
 ---
 "#;
     let arena = parse(md, &ParseOptions::default());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     assert!(html.contains("<h1>"), "heading: {html}");
     assert!(html.contains("<strong>"), "bold: {html}");
     assert!(html.contains("<em>"), "italic: {html}");
@@ -235,7 +235,7 @@ fn jsx_flow_with_children() {
 #[test]
 fn jsx_flow_with_children_html() {
     let arena = parse("<h1>asd</h1>\n# qwe", &ParseOptions::mdx());
-    let html = tryckeri_hast::arena_to_html(&arena);
+    let html = tryckeri_hast::mdast_to_html(&arena);
     // Both the explicit <h1> and the markdown # heading should be present.
     assert!(html.contains("asd"), "expected asd in: {html}");
     assert!(html.contains("qwe"), "expected qwe in: {html}");

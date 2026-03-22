@@ -1,4 +1,4 @@
-//! Core Arena struct and methods.
+//! Core MdastArena struct and methods.
 
 use crate::node::{ArenaNode, NodeType, StringRef};
 
@@ -7,7 +7,7 @@ use crate::node::{ArenaNode, NodeType, StringRef};
 /// Strings are NOT copied — the arena holds the source and nodes reference it
 /// via `StringRef` (byte offset + length into `source`).
 #[derive(Debug, Clone)]
-pub struct Arena {
+pub struct MdastArena {
     /// All nodes in order of creation.
     pub(crate) nodes: Vec<ArenaNode>,
     /// Flat array of child node IDs, indexed by node.children_start..+children_count.
@@ -18,9 +18,9 @@ pub struct Arena {
     pub(crate) source: String,
 }
 
-impl Arena {
+impl MdastArena {
     pub fn new(source: String) -> Self {
-        Arena {
+        MdastArena {
             nodes: Vec::new(),
             children: Vec::new(),
             type_data: Vec::new(),
@@ -89,7 +89,7 @@ impl Arena {
     ///
     /// NOTE: This appends to the end of the children flat array each time it
     /// is called.  It is meant to be called once per child when finalising a
-    /// node (i.e. from `ArenaBuilder::close_node`), NOT one-by-one during
+    /// node (i.e. from `MdastArenaBuilder::close_node`), NOT one-by-one during
     /// open construction.  The builder accumulates children in its stack and
     /// calls `set_children` when closing a node.
     pub fn add_child(&mut self, parent_id: u32, child_id: u32) {
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn alloc_and_retrieve() {
-        let mut arena = Arena::new("hello world".to_string());
+        let mut arena = MdastArena::new("hello world".to_string());
         let id = arena.alloc_node(NodeType::Text);
         assert_eq!(id, 0);
         assert_eq!(arena.len(), 1);
@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn set_position_roundtrip() {
-        let mut arena = Arena::new(String::new());
+        let mut arena = MdastArena::new(String::new());
         let id = arena.alloc_node(NodeType::Paragraph);
         arena.set_position(id, 0, 10, 1, 1, 1, 11);
         let node = arena.get_node(id);
@@ -212,7 +212,7 @@ mod tests {
 
     #[test]
     fn set_children_updates_parent() {
-        let mut arena = Arena::new(String::new());
+        let mut arena = MdastArena::new(String::new());
         let parent = arena.alloc_node(NodeType::Paragraph);
         let child1 = arena.alloc_node(NodeType::Text);
         let child2 = arena.alloc_node(NodeType::Text);
@@ -225,14 +225,14 @@ mod tests {
     #[test]
     fn get_str_works() {
         let source = "Hello, world!".to_string();
-        let arena = Arena::new(source);
+        let arena = MdastArena::new(source);
         let sr = StringRef::new(7, 5);
         assert_eq!(arena.get_str(sr), "world");
     }
 
     #[test]
     fn type_data_roundtrip() {
-        let mut arena = Arena::new(String::new());
+        let mut arena = MdastArena::new(String::new());
         let id = arena.alloc_node(NodeType::Heading);
         arena.set_type_data(id, &[2u8]);
         let node = arena.get_node(id);

@@ -3,7 +3,7 @@
 use mdast_arena::{
     decode_code_data, decode_heading_data, decode_link_data, decode_list_data, decode_table_data,
     encode_code_data, encode_heading_data, encode_link_data, encode_list_data, encode_table_data,
-    ArenaBuilder, ColumnAlign, NodeType, StringRef,
+    ColumnAlign, MdastBuilder, NodeType, StringRef,
 };
 
 #[test]
@@ -91,10 +91,10 @@ fn encode_decode_table_data_empty() {
     assert!(decoded.is_empty());
 }
 
-/// Store type data via ArenaBuilder and read it back through the arena.
+/// Store type data via MdastBuilder and read it back through the arena.
 #[test]
 fn type_data_stored_in_arena() {
-    let mut builder = ArenaBuilder::new("# Title".to_string());
+    let mut builder = MdastBuilder::new("# Title".to_string());
     builder.open_node(NodeType::Root);
     let heading = builder.open_node(NodeType::Heading);
     builder.set_data_current(&encode_heading_data(2));

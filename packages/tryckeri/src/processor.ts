@@ -1,5 +1,5 @@
 import { ProcessorContext, runPluginsOnBuffer } from "./pipeline.js";
-import { ArenaReader } from "./arena-reader.js";
+import { MdastReader } from "./mdast-reader.js";
 import { materializeTree } from "./materializer.js";
 import { DataMap } from "./data-map.js";
 import type { PluginDefinition } from "./plugin.js";
@@ -68,7 +68,7 @@ class Processor {
     options: { filename?: string } = {},
   ): ProcessTreeResult {
     const result = this.processBuffer(buffer, options);
-    const reader = new ArenaReader(result.buffer);
+    const reader = new MdastReader(result.buffer);
     const tree = materializeTree(reader, result.dataMap);
     return {
       tree,

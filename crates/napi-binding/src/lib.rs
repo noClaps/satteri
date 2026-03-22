@@ -25,14 +25,14 @@ pub fn compile_mdx_from_buffer(buf: Buffer) -> Result<String> {
 // New parser (pulldown-cmark based)
 // ---------------------------------------------------------------------------
 
-/// Parse Markdown/MDX source and return a raw binary Arena buffer.
+/// Parse Markdown/MDX source and return a raw binary MdastArena buffer.
 #[napi]
 pub fn parse_to_buffer(source: String) -> Result<Uint8Array> {
     let arena = parser::parse(&source, &parser::ParseOptions::default());
     Ok(Uint8Array::new(arena.to_raw_buffer()))
 }
 
-/// Parse MDX source and return a raw binary Arena buffer (MDX mode).
+/// Parse MDX source and return a raw binary MdastArena buffer (MDX mode).
 #[napi]
 pub fn parse_mdx_to_buffer(source: String) -> Result<Uint8Array> {
     let arena = parser::parse(&source, &parser::ParseOptions::mdx());
@@ -43,7 +43,7 @@ pub fn parse_mdx_to_buffer(source: String) -> Result<Uint8Array> {
 #[napi]
 pub fn parse_to_hast_buffer(source: String) -> Result<Buffer> {
     let arena = parser::parse(&source, &parser::ParseOptions::default());
-    let hast_buf = tryckeri_hast::arena_to_hast_buffer(&arena.to_raw_buffer())
+    let hast_buf = tryckeri_hast::mdast_to_hast_buffer(&arena.to_raw_buffer())
         .map_err(|e| napi::Error::from_reason(format!("{e:?}")))?;
     Ok(Buffer::from(hast_buf))
 }
@@ -52,7 +52,7 @@ pub fn parse_to_hast_buffer(source: String) -> Result<Buffer> {
 #[napi]
 pub fn parse_mdx_to_hast_buffer(source: String) -> Result<Buffer> {
     let arena = parser::parse(&source, &parser::ParseOptions::mdx());
-    let hast_buf = tryckeri_hast::arena_to_hast_buffer(&arena.to_raw_buffer())
+    let hast_buf = tryckeri_hast::mdast_to_hast_buffer(&arena.to_raw_buffer())
         .map_err(|e| napi::Error::from_reason(format!("{e:?}")))?;
     Ok(Buffer::from(hast_buf))
 }
@@ -61,14 +61,14 @@ pub fn parse_mdx_to_hast_buffer(source: String) -> Result<Buffer> {
 #[napi]
 pub fn parse_to_html(source: String) -> Result<String> {
     let arena = parser::parse(&source, &parser::ParseOptions::default());
-    Ok(tryckeri_hast::arena_to_html(&arena))
+    Ok(tryckeri_hast::mdast_to_html(&arena))
 }
 
 /// Parse MDX source and return HTML string directly.
 #[napi]
 pub fn parse_mdx_to_html(source: String) -> Result<String> {
     let arena = parser::parse(&source, &parser::ParseOptions::mdx());
-    Ok(tryckeri_hast::arena_to_html(&arena))
+    Ok(tryckeri_hast::mdast_to_html(&arena))
 }
 
 // ---------------------------------------------------------------------------
@@ -78,7 +78,7 @@ pub fn parse_mdx_to_html(source: String) -> Result<String> {
 /// Convert an existing MDAST binary buffer to a HAST binary buffer.
 #[napi]
 pub fn mdast_buffer_to_hast_buffer(buf: Buffer) -> Result<Buffer> {
-    let hast_buf = tryckeri_hast::arena_to_hast_buffer(&buf)
+    let hast_buf = tryckeri_hast::mdast_to_hast_buffer(&buf)
         .map_err(|e| napi::Error::from_reason(format!("{e:?}")))?;
     Ok(Buffer::from(hast_buf))
 }

@@ -1,12 +1,12 @@
 import { test, expect } from "vitest";
-import { ArenaReader } from "../src/arena-reader.js";
+import { MdastReader } from "../src/mdast-reader.js";
 import { DataMap } from "../src/data-map.js";
 import { materializeTree } from "../src/materializer.js";
 import { buildHelloWorldBuffer } from "./fixtures.js";
 
 function setup() {
   const buf = buildHelloWorldBuffer();
-  const reader = new ArenaReader(buf);
+  const reader = new MdastReader(buf);
   const dataMap = new DataMap();
   return { reader, dataMap };
 }

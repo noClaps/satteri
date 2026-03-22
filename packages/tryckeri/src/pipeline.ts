@@ -1,6 +1,6 @@
-import { visitArena } from "./visitor.js";
+import { visitMdast } from "./visitor.js";
 import { DataMap } from "./data-map.js";
-import { ArenaReader } from "./arena-reader.js";
+import { MdastReader } from "./mdast-reader.js";
 import { materializeNode } from "./materializer.js";
 import type { PluginDefinition } from "./plugin.js";
 import type { MdastNode } from "./types.js";
@@ -47,7 +47,7 @@ export function runPluginsOnBuffer(
   let currentBuffer = buffer;
 
   for (const { instance, name: _name } of pluginInstances) {
-    const reader = new ArenaReader(currentBuffer);
+    const reader = new MdastReader(currentBuffer);
 
     const fileContext: FileContext = {
       source: reader.getSource(),
@@ -58,7 +58,7 @@ export function runPluginsOnBuffer(
     };
 
     const wrappedPlugin = wrapInstance(instance, fileContext);
-    const result = visitArena(reader, wrappedPlugin, dm);
+    const result = visitMdast(reader, wrappedPlugin, dm);
     allDiagnostics.push(...result.diagnostics);
     totalMutations += result.mutations.length;
 
@@ -117,7 +117,7 @@ function wrapInstance(
 }
 
 function applyMutationsJS(
-  _reader: ArenaReader,
+  _reader: MdastReader,
   buffer: ArrayBuffer | Uint8Array,
   _mutations: Mutation[],
   _dataMap: DataMap,

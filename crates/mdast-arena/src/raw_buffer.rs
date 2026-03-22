@@ -2,7 +2,7 @@
 //!
 //! Wire format: `[BufferHeader][nodes...][children u32s][type_data bytes][source UTF-8]`
 
-use crate::arena::Arena;
+use crate::arena::MdastArena;
 use crate::node::{ArenaNode, StringRef, NODE_STRUCT_SIZE};
 
 // ---------------------------------------------------------------------------
@@ -61,10 +61,10 @@ pub struct BufferHeader {
 const HEADER_SIZE: usize = std::mem::size_of::<BufferHeader>();
 
 // ---------------------------------------------------------------------------
-// to_raw_buffer / from_raw_buffer on Arena
+// to_raw_buffer / from_raw_buffer on MdastArena
 // ---------------------------------------------------------------------------
 
-impl Arena {
+impl MdastArena {
     /// Serialize to a flat byte buffer:
     /// `[BufferHeader][nodes][children u32s][type_data][source]`
     pub fn to_raw_buffer(&self) -> Vec<u8> {
@@ -121,9 +121,9 @@ impl Arena {
         buf
     }
 
-    /// Deserialize from a raw buffer into an `ArenaView` (read-only, borrows
+    /// Deserialize from a raw buffer into an `MdastView` (read-only, borrows
     /// the buffer).
-    pub fn from_raw_buffer(buf: &[u8]) -> Result<ArenaView<'_>, BufferError> {
+    pub fn from_raw_buffer(buf: &[u8]) -> Result<MdastView<'_>, BufferError> {
         if buf.len() < HEADER_SIZE {
             return Err(BufferError::TooShort);
         }
@@ -163,30 +163,30 @@ impl Arena {
         let source_bytes = &buf[header.source_offset as usize..source_end];
         std::str::from_utf8(source_bytes).map_err(|_| BufferError::InvalidUtf8)?;
 
-        Ok(ArenaView { header, buf })
+        Ok(MdastView { header, buf })
     }
 }
 
 // ---------------------------------------------------------------------------
-// ArenaView — read-only zero-copy view
+// MdastView — read-only zero-copy view
 // ---------------------------------------------------------------------------
 
-/// A read-only view over a raw buffer produced by `Arena::to_raw_buffer`.
-pub struct ArenaView<'a> {
+/// A read-only view over a raw buffer produced by `MdastArena::to_raw_buffer`.
+pub struct MdastView<'a> {
     pub(crate) header: BufferHeader,
     pub(crate) buf: &'a [u8],
 }
 
-impl std::fmt::Debug for ArenaView<'_> {
+impl std::fmt::Debug for MdastView<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ArenaView")
+        f.debug_struct("MdastView")
             .field("node_count", &self.header.node_count)
             .field("buf_len", &self.buf.len())
             .finish()
     }
 }
 
-impl<'a> ArenaView<'a> {
+impl<'a> MdastView<'a> {
     /// Get a node by ID.
     pub fn get_node(&self, node_id: u32) -> &ArenaNode {
         assert!(
@@ -243,11 +243,11 @@ impl<'a> ArenaView<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::builder::ArenaBuilder;
+    use crate::builder::MdastBuilder;
     use crate::node::NodeType;
 
-    fn simple_arena() -> Arena {
-        let mut builder = ArenaBuilder::new("Hello, world!".to_string());
+    fn simple_arena() -> MdastArena {
+        let mut builder = MdastBuilder::new("Hello, world!".to_string());
         builder.open_node(NodeType::Root);
         builder.open_node(NodeType::Paragraph);
         builder.add_leaf(NodeType::Text);
@@ -270,7 +270,7 @@ mod tests {
     fn round_trip_node_count() {
         let arena = simple_arena();
         let buf = arena.to_raw_buffer();
-        let view = Arena::from_raw_buffer(&buf).unwrap();
+        let view = MdastArena::from_raw_buffer(&buf).unwrap();
         assert_eq!(view.node_count(), arena.len() as u32);
     }
 
@@ -279,7 +279,7 @@ mod tests {
         let arena = simple_arena();
         let mut buf = arena.to_raw_buffer();
         buf[0] = b'X';
-        let err = Arena::from_raw_buffer(&buf).unwrap_err();
+        let err = MdastArena::from_raw_buffer(&buf).unwrap_err();
         assert_eq!(err, BufferError::BadMagic);
     }
 
@@ -287,7 +287,7 @@ mod tests {
     fn round_trip_source() {
         let arena = simple_arena();
         let buf = arena.to_raw_buffer();
-        let view = Arena::from_raw_buffer(&buf).unwrap();
+        let view = MdastArena::from_raw_buffer(&buf).unwrap();
         assert_eq!(view.get_source(), "Hello, world!");
     }
 
@@ -296,7 +296,7 @@ mod tests {
         let arena = simple_arena();
         let original_children: Vec<u32> = arena.get_children(0).to_vec();
         let buf = arena.to_raw_buffer();
-        let view = Arena::from_raw_buffer(&buf).unwrap();
+        let view = MdastArena::from_raw_buffer(&buf).unwrap();
         assert_eq!(view.get_children(0), original_children.as_slice());
     }
 }

@@ -1,20 +1,20 @@
 import { test, expect } from "vitest";
-import { ArenaReader } from "../src/arena-reader.js";
+import { MdastReader } from "../src/mdast-reader.js";
 import { DataMap } from "../src/data-map.js";
-import { visitArena, MutationType, type VisitorContext } from "../src/visitor.js";
+import { visitMdast, MutationType, type VisitorContext } from "../src/visitor.js";
 import { buildHelloWorldBuffer } from "./fixtures.js";
 import type { MdastNode } from "../src/types.js";
 
 function setup() {
   const buf = buildHelloWorldBuffer();
-  const reader = new ArenaReader(buf);
+  const reader = new MdastReader(buf);
   const dataMap = new DataMap();
   return { reader, dataMap };
 }
 
 test("visitor with no subscriptions produces no mutations, no diagnostics", () => {
   const { reader, dataMap } = setup();
-  const result = visitArena(reader, {}, dataMap);
+  const result = visitMdast(reader, {}, dataMap);
   expect(result.mutations.length).toBe(0);
   expect(result.diagnostics.length).toBe(0);
   expect(result.hasMutations).toBe(false);
@@ -23,7 +23,7 @@ test("visitor with no subscriptions produces no mutations, no diagnostics", () =
 test("visiting heading nodes — callback fires once for the test doc", () => {
   const { reader, dataMap } = setup();
   let callCount = 0;
-  visitArena(
+  visitMdast(
     reader,
     {
       heading(_node: MdastNode) {
@@ -38,7 +38,7 @@ test("visiting heading nodes — callback fires once for the test doc", () => {
 test('visitor callback receives correct MDAST node (type="heading", depth=1)', () => {
   const { reader, dataMap } = setup();
   let capturedNode: MdastNode | null = null;
-  visitArena(
+  visitMdast(
     reader,
     {
       heading(node: MdastNode) {
@@ -55,7 +55,7 @@ test('visitor callback receives correct MDAST node (type="heading", depth=1)', (
 test("return value from visitor creates a Replace mutation", () => {
   const { reader, dataMap } = setup();
   const newNode = { type: "paragraph", children: [] } as unknown as MdastNode;
-  const result = visitArena(
+  const result = visitMdast(
     reader,
     {
       heading(_node: MdastNode) {
@@ -71,7 +71,7 @@ test("return value from visitor creates a Replace mutation", () => {
 
 test("context.removeNode creates a Remove mutation", () => {
   const { reader, dataMap } = setup();
-  const result = visitArena(
+  const result = visitMdast(
     reader,
     {
       heading(node: MdastNode, context: VisitorContext) {
@@ -87,7 +87,7 @@ test("context.removeNode creates a Remove mutation", () => {
 
 test("context.report creates a diagnostic entry", () => {
   const { reader, dataMap } = setup();
-  const result = visitArena(
+  const result = visitMdast(
     reader,
     {
       heading(node: MdastNode, context: VisitorContext) {
@@ -105,7 +105,7 @@ test("context.report creates a diagnostic entry", () => {
 test("plugin.before is called before traversal", () => {
   const { reader, dataMap } = setup();
   const order: string[] = [];
-  visitArena(
+  visitMdast(
     reader,
     {
       before(_context) {
@@ -124,7 +124,7 @@ test("plugin.before is called before traversal", () => {
 test("plugin.after is called after traversal", () => {
   const { reader, dataMap } = setup();
   const order: string[] = [];
-  visitArena(
+  visitMdast(
     reader,
     {
       heading(_node: MdastNode) {
@@ -143,7 +143,7 @@ test("plugin.after is called after traversal", () => {
 test("transformRoot gets the full materialized root", () => {
   const { reader, dataMap } = setup();
   let capturedRoot: MdastNode | null = null;
-  visitArena(
+  visitMdast(
     reader,
     {
       transformRoot(root, _context) {
@@ -161,7 +161,7 @@ test("transformRoot gets the full materialized root", () => {
 test("multiple subscribed types — all fire", () => {
   const { reader, dataMap } = setup();
   const fired: string[] = [];
-  visitArena(
+  visitMdast(
     reader,
     {
       heading(_node: MdastNode) {
@@ -196,14 +196,14 @@ test("non-subscribed types are not materialized via getNode", () => {
       return typeof val === "function" ? val.bind(target) : val;
     },
   });
-  visitArena(proxyReader as ArenaReader, { heading(_node: MdastNode) {} }, dataMap);
+  visitMdast(proxyReader as MdastReader, { heading(_node: MdastNode) {} }, dataMap);
   expect(getNodeCalls).toBe(1);
 });
 
 test("context.source returns the source text", () => {
   const { reader, dataMap } = setup();
   let capturedSource: string | null = null;
-  visitArena(
+  visitMdast(
     reader,
     {
       before(context) {
@@ -218,10 +218,10 @@ test("context.source returns the source text", () => {
 test("hasMutations is false when no mutations, true when there are mutations", () => {
   const { reader, dataMap } = setup();
 
-  const noMutResult = visitArena(reader, { heading(_node: MdastNode) {} }, dataMap);
+  const noMutResult = visitMdast(reader, { heading(_node: MdastNode) {} }, dataMap);
   expect(noMutResult.hasMutations).toBe(false);
 
-  const mutResult = visitArena(
+  const mutResult = visitMdast(
     reader,
     {
       heading(node: MdastNode, context: VisitorContext) {

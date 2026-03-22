@@ -1,9 +1,9 @@
-use mdast_arena::{codec::*, Arena, ArenaBuilder, NodeType, StringRef};
+use mdast_arena::{codec::*, MdastArena, MdastBuilder, NodeType, StringRef};
 use tryckeri_plugin_api::*;
 
-fn build_test_arena() -> Arena {
+fn build_test_arena() -> MdastArena {
     let source = "# Hello\n\nWorld".to_string();
-    let mut b = ArenaBuilder::new(source);
+    let mut b = MdastBuilder::new(source);
 
     b.open_node(NodeType::Root);
 
@@ -155,11 +155,11 @@ fn before_and_after_hooks_called() {
             PluginMeta::new("hook-tracker")
         }
 
-        fn before(&mut self, _arena: &Arena, ctx: &mut PluginContext) {
+        fn before(&mut self, _arena: &MdastArena, ctx: &mut PluginContext) {
             ctx.set_data(0, "before", DataValue::Bool(true));
         }
 
-        fn after(&mut self, _arena: &Arena, ctx: &mut PluginContext) {
+        fn after(&mut self, _arena: &MdastArena, ctx: &mut PluginContext) {
             ctx.set_data(0, "after", DataValue::Bool(true));
         }
     }
@@ -190,7 +190,7 @@ fn plugins_run_in_order() {
         fn meta(&self) -> PluginMeta {
             PluginMeta::new("set-counter")
         }
-        fn before(&mut self, _arena: &Arena, ctx: &mut PluginContext) {
+        fn before(&mut self, _arena: &MdastArena, ctx: &mut PluginContext) {
             ctx.set_data(0, "order", DataValue::Int(1));
         }
     }
@@ -200,7 +200,7 @@ fn plugins_run_in_order() {
         fn meta(&self) -> PluginMeta {
             PluginMeta::new("verify-counter")
         }
-        fn before(&mut self, _arena: &Arena, ctx: &mut PluginContext) {
+        fn before(&mut self, _arena: &MdastArena, ctx: &mut PluginContext) {
             // Should already see the data set by plugin 1
             let existing = ctx.get_data(0, "order");
             // Update to 2 to show we ran

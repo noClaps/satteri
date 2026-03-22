@@ -1,13 +1,13 @@
-//! Fast markdown parser: pulldown-cmark → `mdast-arena::Arena`.
+//! Fast markdown parser: pulldown-cmark → `mdast-arena::MdastArena`.
 //!
-//! This crate bridges pulldown-cmark's event stream into the flat Arena
+//! This crate bridges pulldown-cmark's event stream into the flat MdastArena
 //! representation used by the rest of the pipeline (HAST, plugins, MDX compile).
 
 use mdast_arena::{
     encode_code_data, encode_expression_data, encode_footnote_definition_data, encode_heading_data,
     encode_image_data, encode_link_data, encode_list_data, encode_list_item_data, encode_math_data,
-    encode_mdx_jsx_element_data, encode_string_ref_data, encode_table_data, Arena, ArenaBuilder,
-    ColumnAlign, LineIndex, NodeType, StringRef,
+    encode_mdx_jsx_element_data, encode_string_ref_data, encode_table_data, ColumnAlign, LineIndex,
+    MdastArena, MdastBuilder, NodeType, StringRef,
 };
 use pulldown_cmark::{
     CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd, TextMergeWithOffset,
@@ -49,12 +49,12 @@ impl ParseOptions {
     }
 }
 
-/// Parse markdown source into an Arena.
-pub fn parse(source: &str, opts: &ParseOptions) -> Arena {
+/// Parse markdown source into a MdastArena.
+pub fn parse(source: &str, opts: &ParseOptions) -> MdastArena {
     let line_index = LineIndex::from_source(source);
     let parser =
         TextMergeWithOffset::new(Parser::new_ext(source, opts.pulldown).into_offset_iter());
-    let mut builder = ArenaBuilder::new(source.to_string());
+    let mut builder = MdastBuilder::new(source.to_string());
 
     // Open root node.
     builder.open_node(NodeType::Root);
@@ -531,7 +531,7 @@ pub fn parse(source: &str, opts: &ParseOptions) -> Arena {
 /// Convert a pulldown-cmark Tag to a NodeType + optional type data.
 fn tag_to_node_type(
     tag: &Tag<'_>,
-    builder: &mut ArenaBuilder,
+    builder: &mut MdastBuilder,
     _source: &str,
 ) -> (NodeType, Option<Vec<u8>>) {
     match tag {
@@ -673,7 +673,7 @@ fn tag_to_node_type(
 /// `[Paragraph([Text("b")])]` (newline-only text nodes are dropped).
 ///
 /// Must be called BEFORE `close_node()` while the node's children are still pending.
-fn wrap_bare_text_in_paragraphs(builder: &mut ArenaBuilder, _jsx_id: u32) {
+fn wrap_bare_text_in_paragraphs(builder: &mut MdastBuilder, _jsx_id: u32) {
     // Phase 1: Read — collect child info without holding borrows.
     let old_children: Vec<u32> = builder.current_children_mut().clone();
     let mut is_newline: Vec<bool> = Vec::with_capacity(old_children.len());
@@ -753,7 +753,7 @@ fn wrap_bare_text_in_paragraphs(builder: &mut ArenaBuilder, _jsx_id: u32) {
 
 /// Find the stack depth of the open JSX element.
 /// Scans from top of stack downward, returns the 1-based depth to close to.
-fn find_jsx_depth(builder: &ArenaBuilder) -> usize {
+fn find_jsx_depth(builder: &MdastBuilder) -> usize {
     let depth = builder.stack_depth();
     for i in (0..depth).rev() {
         if let Some(node_id) = builder.stack_node_id(i) {
@@ -807,7 +807,7 @@ fn source_ref_or_alloc(
     source: &str,
     text: &str,
     offset: usize,
-    builder: &mut ArenaBuilder,
+    builder: &mut MdastBuilder,
 ) -> StringRef {
     // Check if the text is a direct slice of the source at the expected offset.
     if let Some(slice) = source.get(offset..offset + text.len()) {
@@ -932,7 +932,7 @@ mod tests {
     fn roundtrip_to_buffer() {
         let arena = parse("# Hello\n\nworld\n", &ParseOptions::default());
         let buf = arena.to_raw_buffer();
-        let view = Arena::from_raw_buffer(&buf).expect("valid buffer");
+        let view = MdastArena::from_raw_buffer(&buf).expect("valid buffer");
         assert_eq!(view.node_count() as usize, arena.len());
     }
 }

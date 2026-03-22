@@ -1,6 +1,6 @@
 //! Codec helpers: type-specific data structs and encode/decode functions.
 //!
-//! These structs are serialized into `Arena::type_data` as raw bytes using
+//! These structs are serialized into `MdastArena::type_data` as raw bytes using
 //! `#[repr(C)]` layout. Each `encode_*` function returns the bytes to store,
 //! and each `decode_*` function reads them back.
 

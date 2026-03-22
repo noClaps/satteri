@@ -1,6 +1,6 @@
 use crate::context::PluginContext;
 use crate::typed_nodes::*;
-use mdast_arena::{Arena, NodeType};
+use mdast_arena::{MdastArena, NodeType};
 
 /// Metadata about a plugin.
 #[derive(Debug, Clone)]
@@ -53,10 +53,10 @@ pub trait Plugin: Send + Sync {
     fn init(&mut self) {}
 
     /// Called before each file.
-    fn before(&mut self, _arena: &Arena, _ctx: &mut PluginContext) {}
+    fn before(&mut self, _arena: &MdastArena, _ctx: &mut PluginContext) {}
 
     /// Called after each file.
-    fn after(&mut self, _arena: &Arena, _ctx: &mut PluginContext) {}
+    fn after(&mut self, _arena: &MdastArena, _ctx: &mut PluginContext) {}
 
     // ── Node visitors — implement only what you need ──────────────────────────
 
@@ -104,7 +104,11 @@ pub trait Plugin: Send + Sync {
     }
 
     /// Optional: full arena access for wholesale rewrites. Return None to leave unchanged.
-    fn transform_root(&mut self, _arena: &Arena, _ctx: &mut PluginContext) -> Option<Arena> {
+    fn transform_root(
+        &mut self,
+        _arena: &MdastArena,
+        _ctx: &mut PluginContext,
+    ) -> Option<MdastArena> {
         None
     }
 }
@@ -112,7 +116,7 @@ pub trait Plugin: Send + Sync {
 /// A generic node view for nodes that don't have type-specific fields.
 pub struct NodeView<'a> {
     pub(crate) node_id: u32,
-    pub(crate) arena: &'a Arena,
+    pub(crate) arena: &'a MdastArena,
 }
 
 impl<'a> NodeView<'a> {

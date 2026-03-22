@@ -6,17 +6,17 @@
 #![allow(clippy::cast_possible_truncation)]
 #![allow(clippy::cast_precision_loss)]
 
-mod arena_to_hast;
 mod configuration;
 pub mod hast;
 mod hast_util_to_oxc;
+mod mdast_to_hast;
 mod mdx_plugin_recma_document;
 mod mdx_plugin_recma_jsx_rewrite;
 mod oxc;
 mod oxc_util_build_jsx;
 mod oxc_utils;
 
-pub use arena_to_hast::arena_to_hast;
+pub use mdast_to_hast::mdast_to_hast;
 
 use crate::{
     hast_util_to_oxc::{MdxProgram, hast_util_to_oxc},
@@ -43,7 +43,7 @@ pub use crate::mdx_plugin_recma_document::JsxRuntime;
 ///
 /// ```
 /// use mdxjs::compile;
-/// # fn main() -> Result<(), message::Message> {
+/// # fn main() -> Result<(), mdast_arena::mdx_types::Message> {
 ///
 /// let result = compile("# Hi!", &Default::default())?;
 /// assert!(result.contains("function _createMdxContent"));
@@ -69,19 +69,17 @@ pub fn compile(value: &str, options: &Options) -> Result<String, message::Messag
 
 /// Compile a pre-parsed arena directly to JavaScript, skipping the parse step.
 ///
-/// This is the zero-reparse path: arena → hast → OXC → JS.
-/// Accepts any type implementing `ReadArena` — both `Arena` (owned) and
-/// `ArenaView<'_>` (zero-copy from a raw buffer received from JS).
+/// This is the zero-reparse path: mdast → hast → OXC → JS.
 ///
 /// ## Errors
 ///
-/// Errors propagate from the downstream hast→OXC pipeline.
+/// Errors propagate from the downstream hast → OXC pipeline.
 pub fn compile_arena(
-    arena: &dyn mdast_arena::ReadArena,
+    arena: &dyn mdast_arena::ReadMdast,
     options: &Options,
 ) -> Result<String, message::Message> {
     let allocator = Allocator::default();
-    let hast = arena_to_hast(arena);
+    let hast = mdast_to_hast(arena);
     let location = Location::new(arena.source().as_bytes());
     let mut explicit_jsxs = FxHashSet::default();
     let mut program = hast_util_to_oxc(
@@ -104,13 +102,13 @@ pub fn compile_arena(
 
 /// Compile a raw MDAST binary buffer (as produced by the NAPI layer) to JavaScript.
 ///
-/// This is the zero-copy NAPI path: raw bytes → `ArenaView` → hast → OXC → JS.
+/// This is the zero-copy NAPI path: raw bytes → mdast → hast → OXC → JS.
 ///
 /// ## Errors
 ///
 /// Returns an error if the buffer is malformed or compilation fails.
 pub fn compile_arena_bytes(buf: &[u8], options: &Options) -> Result<String, message::Message> {
-    let view = mdast_arena::Arena::from_raw_buffer(buf).map_err(|e| message::Message {
+    let view = mdast_arena::MdastArena::from_raw_buffer(buf).map_err(|e| message::Message {
         reason: format!("invalid arena buffer: {e:?}"),
         place: None,
         rule_id: Box::new(String::new()),

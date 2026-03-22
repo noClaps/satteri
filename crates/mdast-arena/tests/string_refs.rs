@@ -1,13 +1,13 @@
 //! Integration tests for StringRef and get_str.
 
 use mdast_arena::{
-    decode_string_ref_data, encode_string_ref_data, Arena, ArenaBuilder, NodeType, StringRef,
+    decode_string_ref_data, encode_string_ref_data, MdastArena, MdastBuilder, NodeType, StringRef,
 };
 
 #[test]
 fn store_and_read_back_string_ref() {
     let source = "Hello, world!";
-    let arena = Arena::new(source.to_string());
+    let arena = MdastArena::new(source.to_string());
 
     let sr = StringRef::new(7, 5); // "world"
     assert_eq!(arena.get_str(sr), "world");
@@ -16,7 +16,7 @@ fn store_and_read_back_string_ref() {
 #[test]
 fn multiple_string_refs_same_source() {
     let source = "foo bar baz";
-    let arena = Arena::new(source.to_string());
+    let arena = MdastArena::new(source.to_string());
 
     let foo = StringRef::new(0, 3);
     let bar = StringRef::new(4, 3);
@@ -29,7 +29,7 @@ fn multiple_string_refs_same_source() {
 
 #[test]
 fn empty_string_ref() {
-    let arena = Arena::new("hello".to_string());
+    let arena = MdastArena::new("hello".to_string());
     let empty = StringRef::empty();
     assert_eq!(arena.get_str(empty), "");
     assert!(empty.is_empty());
@@ -38,7 +38,7 @@ fn empty_string_ref() {
 #[test]
 fn string_ref_whole_source() {
     let source = "complete source";
-    let arena = Arena::new(source.to_string());
+    let arena = MdastArena::new(source.to_string());
     let sr = StringRef::new(0, source.len() as u32);
     assert_eq!(arena.get_str(sr), source);
 }
@@ -47,7 +47,7 @@ fn string_ref_whole_source() {
 fn string_ref_encoded_as_type_data() {
     // Text nodes store their content as a StringRef in type_data.
     let source = "hello world";
-    let mut builder = ArenaBuilder::new(source.to_string());
+    let mut builder = MdastBuilder::new(source.to_string());
     builder.open_node(NodeType::Root);
     let text_id = builder.open_node(NodeType::Text);
     // "world" is at offset 6, len 5
@@ -69,7 +69,7 @@ fn string_ref_encoded_as_type_data() {
 fn string_ref_pointing_to_different_substrings() {
     // Simulate a document with multiple text spans.
     let source = "**bold** and _italic_";
-    let arena = Arena::new(source.to_string());
+    let arena = MdastArena::new(source.to_string());
 
     // "bold" starts at offset 2, len 4
     let bold_ref = StringRef::new(2, 4);

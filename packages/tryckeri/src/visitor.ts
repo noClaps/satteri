@@ -1,6 +1,6 @@
 import { materializeNode, TYPE_NAMES } from "./materializer.js";
 import type { MdastNode } from "./types.js";
-import type { ArenaReader } from "./arena-reader.js";
+import type { MdastReader } from "./mdast-reader.js";
 import type { DataMap } from "./data-map.js";
 
 export const MutationType = {
@@ -71,11 +71,11 @@ const VISITOR_KEYS = new Set([
 export class VisitorContext {
   readonly #mutations: Mutation[] = [];
   readonly #diagnostics: Diagnostic[] = [];
-  readonly #reader: ArenaReader;
+  readonly #reader: MdastReader;
   readonly #dataMap: DataMap;
   readonly #rootId: number = 0;
 
-  constructor(reader: ArenaReader, dataMap: DataMap) {
+  constructor(reader: MdastReader, dataMap: DataMap) {
     this.#reader = reader;
     this.#dataMap = dataMap;
   }
@@ -167,10 +167,10 @@ export interface VisitResult {
 }
 
 /**
- * Walk the arena and dispatch to plugin visitor functions.
+ * Walk the MDAST and dispatch to plugin visitor functions.
  */
-export function visitArena(
-  reader: ArenaReader,
+export function visitMdast(
+  reader: MdastReader,
   plugin: PluginInstance,
   dataMap: DataMap,
 ): VisitResult {

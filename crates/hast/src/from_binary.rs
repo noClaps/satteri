@@ -1,6 +1,6 @@
 //! Convert a HAST binary buffer to an HTML string.
 
-use mdast_arena::{Arena, ArenaView, BufferError};
+use mdast_arena::{BufferError, MdastArena, MdastView};
 
 use crate::codec::{
     decode_element_prop, decode_element_prop_count, decode_element_tag, decode_text_data,
@@ -28,13 +28,13 @@ fn escape_attr(s: &str) -> String {
 
 /// Convert a HAST binary buffer to an HTML string.
 pub fn hast_buffer_to_html(buf: &[u8]) -> Result<String, BufferError> {
-    let view = Arena::from_raw_buffer(buf)?;
+    let view = MdastArena::from_raw_buffer(buf)?;
     let mut out = String::new();
     render_node(0, &view, &mut out);
     Ok(out)
 }
 
-fn render_node(node_id: u32, view: &ArenaView, out: &mut String) {
+fn render_node(node_id: u32, view: &MdastView, out: &mut String) {
     let node = view.get_node(node_id);
     let raw_type = node.node_type;
 

@@ -1074,7 +1074,13 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                         mode,
                         self.options,
                     );
-                    let is_valid_seq = c != b'~' || count == 2;
+                    let is_valid_seq = c != b'~'
+                        || count == 2
+                        || (count == 1
+                            && (self
+                                .options
+                                .contains(Options::ENABLE_STRIKETHROUGH)
+                                || self.options.contains(Options::ENABLE_SUBSCRIPT)));
 
                     if (can_open || can_close) && is_valid_seq {
                         self.tree.append_text(begin_text, ix, backslash_escaped);

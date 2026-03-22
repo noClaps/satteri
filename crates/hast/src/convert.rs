@@ -1,15 +1,15 @@
-//! Arena → HAST conversion.
+//! MDAST → HAST conversion.
 
 use mdast_arena::codec::{
     decode_code_data, decode_heading_data, decode_image_data, decode_link_data, decode_list_data,
     decode_list_item_data, decode_string_ref_data,
 };
-use mdast_arena::{Arena, NodeType};
+use mdast_arena::{MdastArena, NodeType};
 
 use crate::node::{HastArena, HastBuilder, Property, PropertyValue};
 
-/// Convert an arena directly to a HAST arena.
-pub fn arena_to_hast(arena: &Arena) -> HastArena {
+/// Convert an MDAST arena to a HAST arena.
+pub fn mdast_to_hast(arena: &MdastArena) -> HastArena {
     let mut builder = HastBuilder::new();
     builder.open_root();
 
@@ -21,7 +21,7 @@ pub fn arena_to_hast(arena: &Arena) -> HastArena {
     builder.finish()
 }
 
-fn convert_node(node_id: u32, arena: &Arena, builder: &mut HastBuilder) {
+fn convert_node(node_id: u32, arena: &MdastArena, builder: &mut HastBuilder) {
     let node = arena.get_node(node_id);
     let node_type = match NodeType::from_u8(node.node_type) {
         Some(t) => t,
@@ -275,14 +275,14 @@ fn convert_node(node_id: u32, arena: &Arena, builder: &mut HastBuilder) {
     }
 }
 
-fn convert_children(node_id: u32, arena: &Arena, builder: &mut HastBuilder) {
+fn convert_children(node_id: u32, arena: &MdastArena, builder: &mut HastBuilder) {
     let children = arena.get_children(node_id).to_vec();
     for child_id in children {
         convert_node(child_id, arena, builder);
     }
 }
 
-fn convert_table_row(row_id: u32, arena: &Arena, builder: &mut HastBuilder, is_header: bool) {
+fn convert_table_row(row_id: u32, arena: &MdastArena, builder: &mut HastBuilder, is_header: bool) {
     builder.open_element("tr");
     let cell_ids = arena.get_children(row_id).to_vec();
     let cell_tag = if is_header { "th" } else { "td" };

@@ -124,10 +124,10 @@ pub struct ArenaNode {
     pub start_column: u32,
     pub end_line: u32,
     pub end_column: u32,
-    /// Index into Arena::children where this node's children start.
+    /// Index into MdastArena::children where this node's children start.
     pub children_start: u32,
     pub children_count: u32,
-    /// Byte offset into Arena::type_data for this node's extra data.
+    /// Byte offset into MdastArena::type_data for this node's extra data.
     pub data_offset: u32,
     pub data_len: u32,
 }

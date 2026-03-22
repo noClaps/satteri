@@ -1,6 +1,6 @@
 import { materializeHastNode, type HastNode } from "./hast-materializer.js";
 import {
-  HastArenaReader,
+  HastReader,
   HAST_ROOT,
   HAST_ELEMENT,
   HAST_TEXT,
@@ -95,10 +95,10 @@ const TYPE_TO_METHOD: Record<number, keyof HastVisitorInstance> = {
 };
 
 /**
- * Walk a HAST binary arena and dispatch to visitor methods.
+ * Walk a HAST binary buffer and dispatch to visitor methods.
  */
-export function visitHastArena(
-  reader: HastArenaReader,
+export function visitHast(
+  reader: HastReader,
   plugin: HastVisitorInstance,
   dataMap: DataMap,
 ): VisitResult {

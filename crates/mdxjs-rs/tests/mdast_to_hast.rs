@@ -1,4 +1,4 @@
-//! Integration tests for `arena_to_hast`.
+//! Integration tests for `mdast_to_hast`.
 
 extern crate mdxjs;
 use mdast_arena::codec::{
@@ -6,23 +6,23 @@ use mdast_arena::codec::{
     encode_list_item_data, encode_string_ref_data,
 };
 use mdast_arena::node::StringRef;
-use mdast_arena::{Arena, NodeType};
-use mdxjs::arena_to_hast;
+use mdast_arena::{MdastArena, NodeType};
 use mdxjs::hast;
+use mdxjs::mdast_to_hast;
 
 // ---------------------------------------------------------------------------
-// Helper: build a minimal Arena manually.
+// Helper: build a minimal MdastArena manually.
 //   Root → Heading(depth=1) → Text("Hello")
 // ---------------------------------------------------------------------------
 
-fn build_heading_paragraph_arena() -> Arena {
+fn build_heading_paragraph_arena() -> MdastArena {
     // We need a source string that contains all sub-strings referenced via
     // StringRef. We concatenate them ourselves.
     let source = "Hello world".to_string();
     let hello_offset = 0u32; // "Hello" starts at 0, len 5
     let world_offset = 6u32; // "world" starts at 6, len 5
 
-    let mut arena = Arena::new(source);
+    let mut arena = MdastArena::new(source);
 
     // Root
     let root_id = arena.alloc_node(NodeType::Root);
@@ -59,7 +59,7 @@ fn build_heading_paragraph_arena() -> Arena {
 #[test]
 fn test_heading_and_paragraph() {
     let arena = build_heading_paragraph_arena();
-    let result = arena_to_hast(&arena);
+    let result = mdast_to_hast(&arena);
 
     match &result {
         hast::Node::Root(root) => {
@@ -120,7 +120,7 @@ fn test_link_reference_unresolved_returns_children() {
     let id_ref = StringRef::new(0, 3); // "foo"
     let text_ref = StringRef::new(3, 5); // "click"
 
-    let mut arena = Arena::new(source);
+    let mut arena = MdastArena::new(source);
     let root_id = arena.alloc_node(NodeType::Root);
     let para_id = arena.alloc_node(NodeType::Paragraph);
     let link_ref_id = arena.alloc_node(NodeType::LinkReference);
@@ -137,7 +137,7 @@ fn test_link_reference_unresolved_returns_children() {
     arena.set_children(para_id, &[link_ref_id]);
     arena.set_children(root_id, &[para_id]);
 
-    let result = arena_to_hast(&arena);
+    let result = mdast_to_hast(&arena);
 
     // Since the definition has no identifier stored in the arena codec,
     // the lookup fails and LinkReference emits its children as a fragment.
@@ -172,7 +172,7 @@ fn test_link_reference_unresolved_returns_children() {
 fn test_unordered_list() {
     // Root → List(ordered=false) → [ListItem → Text("a"), ListItem → Text("b")]
     let source = "ab".to_string();
-    let mut arena = Arena::new(source);
+    let mut arena = MdastArena::new(source);
 
     let root_id = arena.alloc_node(NodeType::Root);
     let list_id = arena.alloc_node(NodeType::List);
@@ -195,7 +195,7 @@ fn test_unordered_list() {
     arena.set_children(list_id, &[item_a_id, item_b_id]);
     arena.set_children(root_id, &[list_id]);
 
-    let result = arena_to_hast(&arena);
+    let result = mdast_to_hast(&arena);
 
     match &result {
         hast::Node::Root(root) => {
@@ -233,7 +233,7 @@ fn test_code_block_with_lang() {
     let code_ref = StringRef::new(4, 12);
     let meta_ref = StringRef::empty();
 
-    let mut arena = Arena::new(source);
+    let mut arena = MdastArena::new(source);
     let root_id = arena.alloc_node(NodeType::Root);
     let code_id = arena.alloc_node(NodeType::Code);
     arena.set_type_data(
@@ -243,7 +243,7 @@ fn test_code_block_with_lang() {
 
     arena.set_children(root_id, &[code_id]);
 
-    let result = arena_to_hast(&arena);
+    let result = mdast_to_hast(&arena);
 
     match &result {
         hast::Node::Root(root) => {
@@ -300,7 +300,7 @@ fn test_image() {
     let alt_ref = StringRef::new(19, 6); // "my alt"
     let title_ref = StringRef::empty();
 
-    let mut arena = Arena::new(source);
+    let mut arena = MdastArena::new(source);
     let root_id = arena.alloc_node(NodeType::Root);
     // Images are inline; put them inside a paragraph
     let para_id = arena.alloc_node(NodeType::Paragraph);
@@ -310,7 +310,7 @@ fn test_image() {
     arena.set_children(para_id, &[img_id]);
     arena.set_children(root_id, &[para_id]);
 
-    let result = arena_to_hast(&arena);
+    let result = mdast_to_hast(&arena);
 
     match &result {
         hast::Node::Root(root) => {
@@ -356,7 +356,7 @@ fn test_emphasis() {
     let source = "hi".to_string();
     let text_ref = StringRef::new(0, 2);
 
-    let mut arena = Arena::new(source);
+    let mut arena = MdastArena::new(source);
     let root_id = arena.alloc_node(NodeType::Root);
     let para_id = arena.alloc_node(NodeType::Paragraph);
     let em_id = arena.alloc_node(NodeType::Emphasis);
@@ -367,7 +367,7 @@ fn test_emphasis() {
     arena.set_children(para_id, &[em_id]);
     arena.set_children(root_id, &[para_id]);
 
-    let result = arena_to_hast(&arena);
+    let result = mdast_to_hast(&arena);
 
     match &result {
         hast::Node::Root(root) => {
@@ -403,7 +403,7 @@ fn test_emphasis() {
 
 #[test]
 fn test_compile_arena_end_to_end() {
-    // Use the mdx crate's parser to build an Arena and compile it.
+    // Use the mdx crate's parser to build a MdastArena and compile it.
     // We just verify it doesn't panic and produces JavaScript.
     use mdxjs::{Options, compile_arena};
 
@@ -411,7 +411,7 @@ fn test_compile_arena_end_to_end() {
     let source = "hello".to_string();
     let text_ref = StringRef::new(0, 5);
 
-    let mut arena = Arena::new(source);
+    let mut arena = MdastArena::new(source);
     let root_id = arena.alloc_node(NodeType::Root);
     let para_id = arena.alloc_node(NodeType::Paragraph);
     let text_id = arena.alloc_node(NodeType::Text);

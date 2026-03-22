@@ -1,23 +1,23 @@
-//! ArenaBuilder — construct an Arena incrementally during parsing.
+//! MdastBuilder — construct an MdastArena incrementally during parsing.
 //!
 //! Nodes are opened (pushed on a stack) and closed (popped, children
 //! finalised).  Leaf nodes are opened and immediately closed.
 
-use crate::arena::Arena;
+use crate::arena::MdastArena;
 use crate::node::{NodeType, StringRef};
 
-/// Builds an `Arena` using an open/close node pattern suitable for
+/// Builds an `MdastArena` using an open/close node pattern suitable for
 /// depth-first tree construction (e.g. SAX-style parsers).
-pub struct ArenaBuilder {
-    arena: Arena,
+pub struct MdastBuilder {
+    arena: MdastArena,
     /// Stack of `(node_id, children_collected_so_far)`.
     stack: Vec<(u32, Vec<u32>)>,
 }
 
-impl ArenaBuilder {
+impl MdastBuilder {
     pub fn new(source: String) -> Self {
-        ArenaBuilder {
-            arena: Arena::new(source),
+        MdastBuilder {
+            arena: MdastArena::new(source),
             stack: Vec::new(),
         }
     }
@@ -107,7 +107,7 @@ impl ArenaBuilder {
     }
 
     /// Append a computed string to the arena's source buffer and return a
-    /// `StringRef` pointing to it.  Delegates to `Arena::alloc_string`.
+    /// `StringRef` pointing to it.  Delegates to `MdastArena::alloc_string`.
     pub fn alloc_string(&mut self, s: &str) -> StringRef {
         self.arena.alloc_string(s)
     }
@@ -135,8 +135,8 @@ impl ArenaBuilder {
         self.stack.get(depth).map(|(id, _)| *id)
     }
 
-    /// Get read-only access to the underlying Arena.
-    pub fn arena_ref(&self) -> &Arena {
+    /// Get read-only access to the underlying MdastArena.
+    pub fn arena_ref(&self) -> &MdastArena {
         &self.arena
     }
 
@@ -145,14 +145,14 @@ impl ArenaBuilder {
         &mut self.stack.last_mut().expect("empty stack").1
     }
 
-    /// Get mutable access to the underlying Arena.
-    pub fn arena_mut(&mut self) -> &mut Arena {
+    /// Get mutable access to the underlying MdastArena.
+    pub fn arena_mut(&mut self) -> &mut MdastArena {
         &mut self.arena
     }
 
     /// Finish building — closes any remaining open nodes and returns the
-    /// completed Arena.
-    pub fn finish(mut self) -> Arena {
+    /// completed MdastArena.
+    pub fn finish(mut self) -> MdastArena {
         // Close remaining open nodes (root last).
         while !self.stack.is_empty() {
             self.close_node();
@@ -168,7 +168,7 @@ mod tests {
 
     #[test]
     fn simple_open_close() {
-        let mut builder = ArenaBuilder::new("# Hello".to_string());
+        let mut builder = MdastBuilder::new("# Hello".to_string());
         let root = builder.open_node(NodeType::Root);
         let heading = builder.open_node(NodeType::Heading);
         let text = builder.add_leaf(NodeType::Text);
@@ -187,7 +187,7 @@ mod tests {
 
     #[test]
     fn finish_closes_open_nodes() {
-        let mut builder = ArenaBuilder::new(String::new());
+        let mut builder = MdastBuilder::new(String::new());
         builder.open_node(NodeType::Root);
         builder.open_node(NodeType::Paragraph);
         builder.add_leaf(NodeType::Text);
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn leaf_has_no_children() {
-        let mut builder = ArenaBuilder::new(String::new());
+        let mut builder = MdastBuilder::new(String::new());
         builder.open_node(NodeType::Root);
         let leaf = builder.add_leaf(NodeType::Break);
         builder.close_node();
@@ -208,7 +208,7 @@ mod tests {
 
     #[test]
     fn position_and_data_current() {
-        let mut builder = ArenaBuilder::new("hello".to_string());
+        let mut builder = MdastBuilder::new("hello".to_string());
         let id = builder.open_node(NodeType::Text);
         builder.set_position_current(0, 5, 1, 1, 1, 6);
         builder.set_data_current(&[42u8]);

@@ -1,5 +1,5 @@
 use mdast_arena::codec::*;
-use mdast_arena::{Arena, ArenaNode, NodeType};
+use mdast_arena::{ArenaNode, MdastArena, NodeType};
 
 /// Position info extracted from an ArenaNode
 #[derive(Debug, Clone, Copy)]
@@ -28,7 +28,7 @@ impl NodePosition {
 /// A typed view over a Heading node in the arena.
 pub struct Heading<'a> {
     pub(crate) node_id: u32,
-    pub(crate) arena: &'a Arena,
+    pub(crate) arena: &'a MdastArena,
 }
 
 impl<'a> Heading<'a> {
@@ -53,7 +53,7 @@ impl<'a> Heading<'a> {
 /// A typed view over a Text node (also used for InlineCode and Html).
 pub struct Text<'a> {
     pub(crate) node_id: u32,
-    pub(crate) arena: &'a Arena,
+    pub(crate) arena: &'a MdastArena,
 }
 
 impl<'a> Text<'a> {
@@ -75,7 +75,7 @@ impl<'a> Text<'a> {
 /// A typed view over a Link node.
 pub struct Link<'a> {
     pub(crate) node_id: u32,
-    pub(crate) arena: &'a Arena,
+    pub(crate) arena: &'a MdastArena,
 }
 
 impl<'a> Link<'a> {
@@ -111,7 +111,7 @@ impl<'a> Link<'a> {
 /// A typed view over a Paragraph node.
 pub struct Paragraph<'a> {
     pub(crate) node_id: u32,
-    pub(crate) arena: &'a Arena,
+    pub(crate) arena: &'a MdastArena,
 }
 
 impl<'a> Paragraph<'a> {
@@ -129,7 +129,7 @@ impl<'a> Paragraph<'a> {
 /// A typed view over an Image node.
 pub struct Image<'a> {
     pub(crate) node_id: u32,
-    pub(crate) arena: &'a Arena,
+    pub(crate) arena: &'a MdastArena,
 }
 
 impl<'a> Image<'a> {
@@ -167,7 +167,7 @@ impl<'a> Image<'a> {
 /// A typed view over a Code node.
 pub struct Code<'a> {
     pub(crate) node_id: u32,
-    pub(crate) arena: &'a Arena,
+    pub(crate) arena: &'a MdastArena,
 }
 
 impl<'a> Code<'a> {

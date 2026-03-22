@@ -1,5 +1,5 @@
 import {
-  HastArenaReader,
+  HastReader,
   HAST_ROOT,
   HAST_ELEMENT,
   HAST_TEXT,
@@ -47,10 +47,10 @@ function propsToRecord(props: HastProperty[]): Record<string, string | boolean |
 }
 
 /**
- * Materialize a single HAST node from the binary arena as a lazy JS object.
+ * Materialize a single HAST node from a binary buffer as a lazy JS object.
  */
 export function materializeHastNode(
-  reader: HastArenaReader,
+  reader: HastReader,
   nodeId: number,
   dataMap: DataMap,
 ): HastNode {
@@ -170,6 +170,6 @@ export function materializeHastNode(
 /**
  * Materialize the full HAST tree from root (nodeId=0).
  */
-export function materializeHastTree(reader: HastArenaReader, dataMap: DataMap): HastNode {
+export function materializeHastTree(reader: HastReader, dataMap: DataMap): HastNode {
   return materializeHastNode(reader, 0, dataMap);
 }

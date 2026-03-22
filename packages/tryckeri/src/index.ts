@@ -1,7 +1,7 @@
-export { ArenaReader, NodeType, NodeTypeName } from "./arena-reader.js";
+export { MdastReader, NodeType, NodeTypeName } from "./mdast-reader.js";
 export { DataMap } from "./data-map.js";
 export { materializeNode, materializeTree, TYPE_NAMES } from "./materializer.js";
-export { visitArena, MutationType } from "./visitor.js";
+export { visitMdast, MutationType } from "./visitor.js";
 export { definePlugin } from "./plugin.js";
 export { createProcessor, ProcessorContext } from "./processor.js";
 export {
@@ -17,7 +17,7 @@ export {
 
 // HAST support
 export {
-  HastArenaReader,
+  HastReader,
   HAST_ROOT,
   HAST_ELEMENT,
   HAST_TEXT,
@@ -33,7 +33,7 @@ export {
 export type { HastProperty } from "./hast-reader.js";
 export { materializeHastNode, materializeHastTree } from "./hast-materializer.js";
 export type { HastNode } from "./hast-materializer.js";
-export { visitHastArena } from "./hast-visitor.js";
+export { visitHast } from "./hast-visitor.js";
 export type {
   HastVisitorInstance,
   HastVisitorContext,

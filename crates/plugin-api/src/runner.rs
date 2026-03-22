@@ -4,12 +4,12 @@ use crate::data::{DataMap, TypedDataMap};
 use crate::plugin::{NodeView, Plugin, VisitResult};
 use crate::typed_nodes::*;
 use mdast_arena::rebuild::{rebuild, Patch};
-use mdast_arena::{Arena, ArenaBuilder, NodeType};
+use mdast_arena::{MdastArena, MdastBuilder, NodeType};
 
 /// Result of running plugins against an arena.
 pub struct PluginRunResult {
     /// The (possibly modified) arena — same instance if no mutations, rebuilt if mutations occurred.
-    pub arena: Arena,
+    pub arena: MdastArena,
     pub commands: Vec<Command>,
     pub diagnostics: Vec<Diagnostic>,
     pub has_mutations: bool,
@@ -35,7 +35,7 @@ impl PluginRunner {
     /// Run all plugins against an arena. Returns the result.
     pub fn run(
         &mut self,
-        arena: Arena,
+        arena: MdastArena,
         data_map: &mut DataMap,
         typed_data: &mut TypedDataMap,
     ) -> PluginRunResult {
@@ -108,7 +108,7 @@ impl PluginRunner {
 /// SetData commands are skipped (they are applied directly through the DataMap,
 /// not via arena structural mutation).
 /// NewNode::Raw commands are skipped (need parser, Phase 8).
-fn commands_to_patches(commands: Vec<&Command>, arena: &Arena) -> Vec<Patch> {
+fn commands_to_patches(commands: Vec<&Command>, arena: &MdastArena) -> Vec<Patch> {
     commands
         .into_iter()
         .filter_map(|cmd| match cmd {
@@ -159,13 +159,13 @@ fn commands_to_patches(commands: Vec<&Command>, arena: &Arena) -> Vec<Patch> {
         .collect()
 }
 
-/// Convert a NewNode into a mini Arena for use as a patch sub-tree.
+/// Convert a NewNode into a mini MdastArena for use as a patch sub-tree.
 /// Returns None for Raw nodes (parser integration is Phase 8).
-fn built_node_to_arena(new_node: &NewNode, source: &str) -> Option<Arena> {
+fn built_node_to_arena(new_node: &NewNode, source: &str) -> Option<MdastArena> {
     match new_node {
         NewNode::Raw(_) => None, // Phase 8
         NewNode::Built(built) => {
-            let mut builder = ArenaBuilder::new(source.to_string());
+            let mut builder = MdastBuilder::new(source.to_string());
             emit_built_node(built, &mut builder);
             Some(builder.finish())
         }
@@ -173,7 +173,7 @@ fn built_node_to_arena(new_node: &NewNode, source: &str) -> Option<Arena> {
 }
 
 /// Recursively emit a BuiltNode into the builder.
-fn emit_built_node(built: &BuiltNode, builder: &mut ArenaBuilder) {
+fn emit_built_node(built: &BuiltNode, builder: &mut MdastBuilder) {
     builder.open_node(built.node_type);
     if !built.data_bytes.is_empty() {
         builder.set_data_current(&built.data_bytes);
@@ -193,7 +193,7 @@ fn dispatch_visitor(
     plugin: &mut dyn Plugin,
     node_type_byte: u8,
     node_id: u32,
-    arena: &Arena,
+    arena: &MdastArena,
     ctx: &mut PluginContext,
 ) -> VisitResult {
     match NodeType::from_u8(node_type_byte) {

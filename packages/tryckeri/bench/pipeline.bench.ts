@@ -21,7 +21,7 @@ import {
   compileMdx,
   compileMdxFromBuffer,
 } from "../src/parse.js";
-import { ArenaReader } from "../src/arena-reader.js";
+import { MdastReader } from "../src/mdast-reader.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -84,9 +84,9 @@ describe("hast", () => {
 // MDAST reader benchmark (JS-only, no native call)
 // ---------------------------------------------------------------------------
 
-describe("arena-reader", () => {
-  bench("ArenaReader — walk all nodes from pre-parsed buffer", () => {
-    const reader = new ArenaReader(mdastBuf);
+describe("mdast-reader", () => {
+  bench("MdastReader — walk all nodes from pre-parsed buffer", () => {
+    const reader = new MdastReader(mdastBuf);
     for (let i = 0; i < reader.nodeCount; i++) {
       reader.getNode(i);
     }

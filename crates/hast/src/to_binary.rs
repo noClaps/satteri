@@ -3,17 +3,17 @@
 use mdast_arena::{
     decode_code_data, decode_definition_data, decode_heading_data, decode_image_data,
     decode_link_data, decode_list_data, decode_list_item_data, decode_math_data,
-    decode_reference_data, decode_string_ref_data, Arena, ArenaBuilder, ArenaView, BufferError,
-    NodeType, StringRef,
+    decode_reference_data, decode_string_ref_data, BufferError, MdastArena, MdastBuilder,
+    MdastView, NodeType, StringRef,
 };
 
 use crate::codec::encode_text_data;
 use crate::node_types::*;
 
 /// Convert an MDAST binary buffer to a HAST binary buffer.
-pub fn arena_to_hast_buffer(mdast_buf: &[u8]) -> Result<Vec<u8>, BufferError> {
-    let view = Arena::from_raw_buffer(mdast_buf)?;
-    let mut builder = ArenaBuilder::new(String::new());
+pub fn mdast_to_hast_buffer(mdast_buf: &[u8]) -> Result<Vec<u8>, BufferError> {
+    let view = MdastArena::from_raw_buffer(mdast_buf)?;
+    let mut builder = MdastBuilder::new(String::new());
 
     // Pre-pass: collect definitions for link/image reference resolution.
     let defs = collect_definitions(&view);
@@ -35,7 +35,7 @@ struct Definition {
     title: Option<String>,
 }
 
-fn collect_definitions(view: &ArenaView) -> Vec<Definition> {
+fn collect_definitions(view: &MdastView) -> Vec<Definition> {
     let mut defs = Vec::new();
     for id in 0..view.node_count() {
         let node = view.get_node(id);
@@ -76,7 +76,7 @@ struct PropData {
     value_ref: StringRef,
 }
 
-fn build_props(builder: &mut ArenaBuilder, specs: &[(&str, u8, StringRef)]) -> Vec<PropData> {
+fn build_props(builder: &mut MdastBuilder, specs: &[(&str, u8, StringRef)]) -> Vec<PropData> {
     specs
         .iter()
         .map(|&(name, kind, value_ref)| {
@@ -95,7 +95,7 @@ fn build_props(builder: &mut ArenaBuilder, specs: &[(&str, u8, StringRef)]) -> V
 // ---------------------------------------------------------------------------
 
 /// Open a HAST_ELEMENT node with the given tag and no properties.
-fn open_element(builder: &mut ArenaBuilder, tag: &str) {
+fn open_element(builder: &mut MdastBuilder, tag: &str) {
     builder.open_node_raw(HAST_ELEMENT);
     let tag_ref = builder.alloc_string(tag);
     let encoded = crate::codec::encode_element_data(tag_ref, &[]);
@@ -103,7 +103,7 @@ fn open_element(builder: &mut ArenaBuilder, tag: &str) {
 }
 
 /// Open a HAST_ELEMENT node with the given tag and pre-built properties.
-fn open_element_with_props(builder: &mut ArenaBuilder, tag: &str, props: &[PropData]) {
+fn open_element_with_props(builder: &mut MdastBuilder, tag: &str, props: &[PropData]) {
     builder.open_node_raw(HAST_ELEMENT);
     let tag_ref = builder.alloc_string(tag);
     let prop_tuples: Vec<(StringRef, u8, StringRef)> = props
@@ -115,7 +115,7 @@ fn open_element_with_props(builder: &mut ArenaBuilder, tag: &str, props: &[PropD
 }
 
 /// Add a void (self-closing) HAST_ELEMENT with no properties.
-fn add_void_element(builder: &mut ArenaBuilder, tag: &str) {
+fn add_void_element(builder: &mut MdastBuilder, tag: &str) {
     builder.open_node_raw(HAST_ELEMENT);
     let tag_ref = builder.alloc_string(tag);
     let encoded = crate::codec::encode_element_data(tag_ref, &[]);
@@ -124,7 +124,7 @@ fn add_void_element(builder: &mut ArenaBuilder, tag: &str) {
 }
 
 /// Add a void (self-closing) HAST_ELEMENT with pre-built properties.
-fn add_void_element_with_props(builder: &mut ArenaBuilder, tag: &str, props: &[PropData]) {
+fn add_void_element_with_props(builder: &mut MdastBuilder, tag: &str, props: &[PropData]) {
     builder.open_node_raw(HAST_ELEMENT);
     let tag_ref = builder.alloc_string(tag);
     let prop_tuples: Vec<(StringRef, u8, StringRef)> = props
@@ -137,7 +137,7 @@ fn add_void_element_with_props(builder: &mut ArenaBuilder, tag: &str, props: &[P
 }
 
 /// Add a HAST_TEXT leaf node with the given string.
-fn add_text_node(builder: &mut ArenaBuilder, text: &str) {
+fn add_text_node(builder: &mut MdastBuilder, text: &str) {
     let text_ref = builder.alloc_string(text);
     let leaf_id = builder.add_leaf_raw(HAST_TEXT);
     builder
@@ -146,7 +146,7 @@ fn add_text_node(builder: &mut ArenaBuilder, text: &str) {
 }
 
 /// Add a HAST_RAW leaf node with the given string.
-fn add_raw_node(builder: &mut ArenaBuilder, html: &str) {
+fn add_raw_node(builder: &mut MdastBuilder, html: &str) {
     let html_ref = builder.alloc_string(html);
     let leaf_id = builder.add_leaf_raw(HAST_RAW);
     builder
@@ -158,7 +158,7 @@ fn add_raw_node(builder: &mut ArenaBuilder, html: &str) {
 // Node conversion
 // ---------------------------------------------------------------------------
 
-fn convert_node(node_id: u32, view: &ArenaView, builder: &mut ArenaBuilder, defs: &[Definition]) {
+fn convert_node(node_id: u32, view: &MdastView, builder: &mut MdastBuilder, defs: &[Definition]) {
     let node = view.get_node(node_id);
     let raw_type = node.node_type;
 
@@ -498,8 +498,8 @@ fn convert_node(node_id: u32, view: &ArenaView, builder: &mut ArenaBuilder, defs
 
 fn convert_children(
     node_id: u32,
-    view: &ArenaView,
-    builder: &mut ArenaBuilder,
+    view: &MdastView,
+    builder: &mut MdastBuilder,
     defs: &[Definition],
 ) {
     let children = view.get_children(node_id).to_vec();
@@ -510,8 +510,8 @@ fn convert_children(
 
 fn convert_table_row(
     row_id: u32,
-    view: &ArenaView,
-    builder: &mut ArenaBuilder,
+    view: &MdastView,
+    builder: &mut MdastBuilder,
     defs: &[Definition],
     is_header: bool,
 ) {
@@ -526,13 +526,13 @@ fn convert_table_row(
     builder.close_node(); // tr
 }
 
-fn extract_text_content(node_id: u32, view: &ArenaView) -> String {
+fn extract_text_content(node_id: u32, view: &MdastView) -> String {
     let mut out = String::new();
     extract_text_recursive(node_id, view, &mut out);
     out
 }
 
-fn extract_text_recursive(node_id: u32, view: &ArenaView, out: &mut String) {
+fn extract_text_recursive(node_id: u32, view: &MdastView, out: &mut String) {
     let node = view.get_node(node_id);
     if node.node_type == NodeType::Text as u8 {
         let data = view.get_type_data(node_id);

@@ -1,5 +1,5 @@
 import type { MdastNode } from "./types.js";
-import type { ArenaReader } from "./arena-reader.js";
+import type { MdastReader } from "./mdast-reader.js";
 import type { DataMap } from "./data-map.js";
 
 export const TYPE_NAMES: Record<number, string> = {
@@ -67,7 +67,7 @@ function lazyProp<T>(key: string, get: () => T): PropertyDescriptor {
  */
 function addTypeProperties(
   node: MdastNode,
-  reader: ArenaReader,
+  reader: MdastReader,
   nodeId: number,
   nodeType: number,
 ): void {
@@ -199,9 +199,9 @@ function addTypeProperties(
 }
 
 /**
- * Materialize a single node from the arena into a lazy MDAST-shaped JS object.
+ * Materialize a single MDAST node from a binary buffer as a lazy JS object.
  */
-export function materializeNode(reader: ArenaReader, nodeId: number, dataMap: DataMap): MdastNode {
+export function materializeNode(reader: MdastReader, nodeId: number, dataMap: DataMap): MdastNode {
   const rawNode = reader.getNode(nodeId);
   const nodeType = rawNode.type;
   const typeName = TYPE_NAMES[nodeType] ?? `unknown(${nodeType})`;
@@ -257,6 +257,6 @@ export function materializeNode(reader: ArenaReader, nodeId: number, dataMap: Da
 }
 
 /** Materialize the full tree from root (nodeId=0). */
-export function materializeTree(reader: ArenaReader, dataMap: DataMap): MdastNode {
+export function materializeTree(reader: MdastReader, dataMap: DataMap): MdastNode {
   return materializeNode(reader, 0, dataMap);
 }

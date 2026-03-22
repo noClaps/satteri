@@ -2,9 +2,9 @@
 
 use mdast_arena::{
     encode_code_data, encode_heading_data, encode_image_data, encode_link_data,
-    encode_string_ref_data, ArenaBuilder, NodeType, StringRef,
+    encode_string_ref_data, MdastBuilder, NodeType, StringRef,
 };
-use tryckeri_hast::{arena_to_html, hast_to_html, HastBuilder, Property, PropertyValue};
+use tryckeri_hast::{hast_to_html, mdast_to_html, HastBuilder, Property, PropertyValue};
 
 // ---------------------------------------------------------------------------
 // Serialization tests (HAST builder → HTML string)
@@ -211,9 +211,9 @@ fn serialize_space_separated_class_property() {
 // End-to-end tests: MDAST arena → HTML string
 // ---------------------------------------------------------------------------
 
-fn build_h1_paragraph_mdast() -> mdast_arena::Arena {
+fn build_h1_paragraph_mdast() -> mdast_arena::MdastArena {
     let source = "# Hello\n\nWorld".to_string();
-    let mut b = ArenaBuilder::new(source);
+    let mut b = MdastBuilder::new(source);
     b.open_node(NodeType::Root);
     b.open_node(NodeType::Heading);
     b.set_data_current(&encode_heading_data(1));
@@ -233,7 +233,7 @@ fn build_h1_paragraph_mdast() -> mdast_arena::Arena {
 #[test]
 fn e2e_heading_and_paragraph() {
     let mdast = build_h1_paragraph_mdast();
-    let html = arena_to_html(&mdast);
+    let html = mdast_to_html(&mdast);
     assert_eq!(html, "<h1>Hello</h1><p>World</p>");
 }
 
@@ -241,7 +241,7 @@ fn e2e_heading_and_paragraph() {
 fn e2e_link() {
     // "[click](https://example.com)"
     let source = "[click](https://example.com)".to_string();
-    let mut b = ArenaBuilder::new(source);
+    let mut b = MdastBuilder::new(source);
     b.open_node(NodeType::Root);
     b.open_node(NodeType::Paragraph);
     let link = b.open_node(NodeType::Link);
@@ -258,14 +258,14 @@ fn e2e_link() {
     b.close_node(); // root
     let mdast = b.finish();
 
-    let html = arena_to_html(&mdast);
+    let html = mdast_to_html(&mdast);
     assert_eq!(html, "<p><a href=\"https://example.com\">click</a></p>");
 }
 
 #[test]
 fn e2e_emphasis() {
     let source = "em".to_string();
-    let mut b = ArenaBuilder::new(source);
+    let mut b = MdastBuilder::new(source);
     b.open_node(NodeType::Root);
     b.open_node(NodeType::Paragraph);
     b.open_node(NodeType::Emphasis);
@@ -277,7 +277,7 @@ fn e2e_emphasis() {
     b.close_node(); // root
     let mdast = b.finish();
 
-    let html = arena_to_html(&mdast);
+    let html = mdast_to_html(&mdast);
     assert_eq!(html, "<p><em>em</em></p>");
 }
 
@@ -285,7 +285,7 @@ fn e2e_emphasis() {
 fn e2e_code_block_with_language() {
     // Code block: lang="rust", value="fn main() {}"
     let source = "rust\nfn main() {}".to_string();
-    let mut b = ArenaBuilder::new(source);
+    let mut b = MdastBuilder::new(source);
     b.open_node(NodeType::Root);
     b.open_node(NodeType::Code);
     b.set_data_current(&encode_code_data(
@@ -298,7 +298,7 @@ fn e2e_code_block_with_language() {
     b.close_node(); // root
     let mdast = b.finish();
 
-    let html = arena_to_html(&mdast);
+    let html = mdast_to_html(&mdast);
     assert_eq!(
         html,
         "<pre><code class=\"language-rust\">fn main() {}</code></pre>"
@@ -308,7 +308,7 @@ fn e2e_code_block_with_language() {
 #[test]
 fn e2e_image() {
     let source = "![alt](img.png)".to_string();
-    let mut b = ArenaBuilder::new(source);
+    let mut b = MdastBuilder::new(source);
     b.open_node(NodeType::Root);
     b.open_node(NodeType::Paragraph);
     b.open_node(NodeType::Image);
@@ -322,6 +322,6 @@ fn e2e_image() {
     b.close_node(); // root
     let mdast = b.finish();
 
-    let html = arena_to_html(&mdast);
+    let html = mdast_to_html(&mdast);
     assert_eq!(html, "<p><img src=\"img.png\" alt=\"alt\" /></p>");
 }

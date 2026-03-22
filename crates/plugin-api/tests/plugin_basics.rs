@@ -1,4 +1,4 @@
-use mdast_arena::{codec::*, Arena, ArenaBuilder, NodeType, StringRef};
+use mdast_arena::{codec::*, MdastArena, MdastBuilder, NodeType, StringRef};
 use tryckeri_plugin_api::*;
 
 // ── Test arena builder ────────────────────────────────────────────────────────
@@ -14,9 +14,9 @@ use tryckeri_plugin_api::*;
 ///          0123456789...
 ///   "Hello" starts at 2, len 5
 ///   "World" starts at 10, len 5
-fn build_test_arena() -> Arena {
+fn build_test_arena() -> MdastArena {
     let source = "# Hello\n\nWorld".to_string();
-    let mut b = ArenaBuilder::new(source);
+    let mut b = MdastBuilder::new(source);
 
     // Root
     b.open_node(NodeType::Root);

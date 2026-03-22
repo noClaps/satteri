@@ -1,12 +1,12 @@
 //! Integration tests for arena construction.
 
-use mdast_arena::{Arena, ArenaBuilder, NodeType};
+use mdast_arena::{MdastArena, MdastBuilder, NodeType};
 
 /// Build a simple Heading node with a Text child and verify structure.
 #[test]
 fn heading_with_text_child() {
     let source = "# Hello";
-    let mut builder = ArenaBuilder::new(source.to_string());
+    let mut builder = MdastBuilder::new(source.to_string());
 
     let root_id = builder.open_node(NodeType::Root);
     builder.set_position_current(0, 7, 1, 1, 1, 8);
@@ -47,7 +47,7 @@ fn heading_with_text_child() {
 /// Build a multi-level tree and verify children relationships.
 #[test]
 fn multi_level_tree_children() {
-    let mut builder = ArenaBuilder::new(String::new());
+    let mut builder = MdastBuilder::new(String::new());
 
     let root = builder.open_node(NodeType::Root);
     let p1 = builder.open_node(NodeType::Paragraph);
@@ -71,7 +71,7 @@ fn multi_level_tree_children() {
 /// Verify parent IDs are set correctly throughout the tree.
 #[test]
 fn parent_ids_correct() {
-    let mut builder = ArenaBuilder::new(String::new());
+    let mut builder = MdastBuilder::new(String::new());
 
     let root = builder.open_node(NodeType::Root);
     let bq = builder.open_node(NodeType::Blockquote);
@@ -90,10 +90,10 @@ fn parent_ids_correct() {
     assert_eq!(arena.get_node(t).parent, p);
 }
 
-/// Test the ArenaBuilder open/close pattern with direct Arena methods mixed in.
+/// Test the MdastBuilder open/close pattern with direct MdastArena methods mixed in.
 #[test]
 fn arena_direct_methods() {
-    let mut arena = Arena::new("foo bar".to_string());
+    let mut arena = MdastArena::new("foo bar".to_string());
 
     let root = arena.alloc_node(NodeType::Root);
     let para = arena.alloc_node(NodeType::Paragraph);
@@ -115,7 +115,7 @@ fn arena_direct_methods() {
 /// A deeply nested structure to check parent/child at every level.
 #[test]
 fn deep_nesting() {
-    let mut builder = ArenaBuilder::new(String::new());
+    let mut builder = MdastBuilder::new(String::new());
     let root = builder.open_node(NodeType::Root);
     let bq = builder.open_node(NodeType::Blockquote);
     let list = builder.open_node(NodeType::List);

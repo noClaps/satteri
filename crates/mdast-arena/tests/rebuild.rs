@@ -4,7 +4,7 @@
 
 use mdast_arena::{
     rebuild::{rebuild, Patch},
-    Arena, ArenaBuilder, NodeType,
+    MdastArena, MdastBuilder, NodeType,
 };
 
 /// Build the standard "# Hello\n\nWorld" test arena.
@@ -15,12 +15,12 @@ use mdast_arena::{
 ///       Text "Hello" (2)
 ///     Paragraph (3)
 ///       Text "World" (4)
-fn build_hello_world() -> Arena {
+fn build_hello_world() -> MdastArena {
     use mdast_arena::codec::{encode_heading_data, encode_string_ref_data};
     use mdast_arena::StringRef;
 
     let source = "# Hello\n\nWorld".to_string();
-    let mut b = ArenaBuilder::new(source);
+    let mut b = MdastBuilder::new(source);
 
     b.open_node(NodeType::Root);
     b.set_position_current(0, 14, 1, 1, 2, 6);
@@ -51,8 +51,8 @@ fn build_hello_world() -> Arena {
 }
 
 /// Helper: make a small single-node sub-arena for use in patches.
-fn single_node_arena(node_type: NodeType) -> Arena {
-    let mut b = ArenaBuilder::new(String::new());
+fn single_node_arena(node_type: NodeType) -> MdastArena {
+    let mut b = MdastBuilder::new(String::new());
     b.open_node(node_type);
     b.close_node();
     b.finish()

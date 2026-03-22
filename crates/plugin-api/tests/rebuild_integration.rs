@@ -1,12 +1,12 @@
 //! Integration tests verifying that PluginRunner actually applies arena rebuild
 //! when structural commands are issued.
 
-use mdast_arena::{codec::*, Arena, ArenaBuilder, NodeType, StringRef};
+use mdast_arena::{codec::*, MdastArena, MdastBuilder, NodeType, StringRef};
 use tryckeri_plugin_api::*;
 
-fn build_test_arena() -> Arena {
+fn build_test_arena() -> MdastArena {
     let source = "# Hello\n\nWorld".to_string();
-    let mut b = ArenaBuilder::new(source);
+    let mut b = MdastBuilder::new(source);
 
     b.open_node(NodeType::Root);
 
@@ -266,7 +266,7 @@ impl Plugin for CounterPlugin {
         PluginMeta::new("counter")
     }
 
-    fn before(&mut self, arena: &Arena, _ctx: &mut PluginContext) {
+    fn before(&mut self, arena: &MdastArena, _ctx: &mut PluginContext) {
         self.count = arena.len();
     }
 }

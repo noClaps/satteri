@@ -3,8 +3,8 @@
 //! This crate provides:
 //! - `NodeType` enum and `ArenaNode` struct
 //! - `StringRef` for zero-copy string references into the source text
-//! - `Arena` for owning all nodes and associated data
-//! - `ArenaBuilder` for incremental tree construction
+//! - `MdastArena` for owning all nodes and associated data
+//! - `MdastBuilder` for incremental tree construction
 //! - `LineIndex` for offset→(line, column) conversion
 //! - Raw buffer export/import for Phase 2's zero-copy transfer layer
 //! - Codec helpers for encoding/decoding type-specific data structs
@@ -20,8 +20,8 @@ pub mod read_arena;
 pub mod rebuild;
 
 // Flat re-exports for convenience.
-pub use arena::Arena;
-pub use builder::ArenaBuilder;
+pub use arena::MdastArena;
+pub use builder::MdastBuilder;
 pub use codec::{
     decode_code_data, decode_definition_data, decode_expression_data,
     decode_footnote_definition_data, decode_heading_data, decode_image_data, decode_link_data,
@@ -36,6 +36,6 @@ pub use codec::{
 };
 pub use line_index::LineIndex;
 pub use node::{ArenaNode, NodeType, StringRef, NODE_STRUCT_SIZE};
-pub use raw_buffer::{ArenaView, BufferError, BufferHeader, BUFFER_MAGIC, BUFFER_VERSION};
-pub use read_arena::ReadArena;
+pub use raw_buffer::{BufferError, BufferHeader, MdastView, BUFFER_MAGIC, BUFFER_VERSION};
+pub use read_arena::ReadMdast;
 pub use rebuild::{rebuild, Patch};

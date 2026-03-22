@@ -41,7 +41,7 @@ const FIELD = {
 // "MDAR" bytes: 4d 44 41 52; read as LE u32 = 0x5241444d
 const MAGIC = 0x5241444d;
 
-export class HastArenaReader {
+export class HastReader {
   readonly #view: DataView;
   readonly #header: BufferHeader;
   readonly #textDecoder: TextDecoder;

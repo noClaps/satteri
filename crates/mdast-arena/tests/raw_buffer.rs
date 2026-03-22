@@ -1,12 +1,12 @@
 //! Integration tests for raw buffer export/import.
 
 use mdast_arena::{
-    decode_heading_data, encode_heading_data, Arena, ArenaBuilder, BufferError, NodeType,
+    decode_heading_data, encode_heading_data, BufferError, MdastArena, MdastBuilder, NodeType,
     BUFFER_MAGIC, BUFFER_VERSION, NODE_STRUCT_SIZE,
 };
 
-fn build_test_arena() -> Arena {
-    let mut builder = ArenaBuilder::new("# Hello\n\nParagraph.".to_string());
+fn build_test_arena() -> MdastArena {
+    let mut builder = MdastBuilder::new("# Hello\n\nParagraph.".to_string());
 
     builder.open_node(NodeType::Root);
     builder.set_position_current(0, 20, 1, 1, 3, 11);
@@ -33,7 +33,7 @@ fn build_test_arena() -> Arena {
 fn export_and_import_basic() {
     let arena = build_test_arena();
     let buf = arena.to_raw_buffer();
-    let view = Arena::from_raw_buffer(&buf).expect("should parse successfully");
+    let view = MdastArena::from_raw_buffer(&buf).expect("should parse successfully");
     assert_eq!(view.node_count(), arena.len() as u32);
 }
 
@@ -65,7 +65,7 @@ fn header_node_struct_size_correct() {
 fn all_nodes_round_trip() {
     let arena = build_test_arena();
     let buf = arena.to_raw_buffer();
-    let view = Arena::from_raw_buffer(&buf).unwrap();
+    let view = MdastArena::from_raw_buffer(&buf).unwrap();
 
     for i in 0..arena.len() as u32 {
         let orig = arena.get_node(i);
@@ -86,7 +86,7 @@ fn all_nodes_round_trip() {
 fn children_round_trip() {
     let arena = build_test_arena();
     let buf = arena.to_raw_buffer();
-    let view = Arena::from_raw_buffer(&buf).unwrap();
+    let view = MdastArena::from_raw_buffer(&buf).unwrap();
 
     for i in 0..arena.len() as u32 {
         let orig_children = arena.get_children(i);
@@ -103,7 +103,7 @@ fn children_round_trip() {
 fn type_data_round_trip() {
     let arena = build_test_arena();
     let buf = arena.to_raw_buffer();
-    let view = Arena::from_raw_buffer(&buf).unwrap();
+    let view = MdastArena::from_raw_buffer(&buf).unwrap();
 
     // Node 1 is the Heading with HeadingData.
     let heading_node = arena.get_node(1);
@@ -122,7 +122,7 @@ fn type_data_round_trip() {
 fn source_round_trip() {
     let arena = build_test_arena();
     let buf = arena.to_raw_buffer();
-    let view = Arena::from_raw_buffer(&buf).unwrap();
+    let view = MdastArena::from_raw_buffer(&buf).unwrap();
     assert_eq!(view.get_source(), arena.source());
 }
 
@@ -131,21 +131,21 @@ fn bad_magic_rejected() {
     let arena = build_test_arena();
     let mut buf = arena.to_raw_buffer();
     buf[0] = b'X';
-    let err = Arena::from_raw_buffer(&buf).unwrap_err();
+    let err = MdastArena::from_raw_buffer(&buf).unwrap_err();
     assert_eq!(err, BufferError::BadMagic);
 }
 
 #[test]
 fn too_short_rejected() {
-    let err = Arena::from_raw_buffer(&[0u8; 4]).unwrap_err();
+    let err = MdastArena::from_raw_buffer(&[0u8; 4]).unwrap_err();
     assert_eq!(err, BufferError::TooShort);
 }
 
 #[test]
 fn empty_arena_round_trips() {
-    let arena = Arena::new(String::new());
+    let arena = MdastArena::new(String::new());
     let buf = arena.to_raw_buffer();
-    let view = Arena::from_raw_buffer(&buf).unwrap();
+    let view = MdastArena::from_raw_buffer(&buf).unwrap();
     assert_eq!(view.node_count(), 0);
     assert_eq!(view.get_source(), "");
 }

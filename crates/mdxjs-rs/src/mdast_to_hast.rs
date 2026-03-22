@@ -1,7 +1,4 @@
-//! Convert an `mdast_arena::Arena` directly into a `hast::Node` tree.
-//!
-//! This replaces the two-step `Arena → markdown::mdast::Node → hast` with a
-//! single direct pass, eliminating the intermediate `mdast` allocation.
+//! Convert an MDAST arena directly into a `hast::Node` tree.
 
 use crate::hast;
 use crate::oxc_utils::inter_element_whitespace;
@@ -12,15 +9,15 @@ use mdast_arena::codec::{
     decode_reference_data, decode_string_ref_data, decode_table_data,
 };
 use mdast_arena::mdx_types::{Point, Position, sanitize_uri as sanitize};
-use mdast_arena::{NodeType, ReadArena};
+use mdast_arena::{NodeType, ReadMdast};
 use rustc_hash::FxHashMap;
 
 // ---------------------------------------------------------------------------
 // Public entry point
 // ---------------------------------------------------------------------------
 
-/// Convert an arena (node 0 = Root) directly to a `hast::Node`.
-pub fn arena_to_hast(arena: &dyn ReadArena) -> hast::Node {
+/// Convert MDAST (node 0 = Root) to a `hast::Node`.
+pub fn mdast_to_hast(arena: &dyn ReadMdast) -> hast::Node {
     let mut ctx = Context::new(arena);
 
     // Pre-pass: collect definitions and footnote definitions.
@@ -263,7 +260,7 @@ pub fn arena_to_hast(arena: &dyn ReadArena) -> hast::Node {
 // ---------------------------------------------------------------------------
 
 struct Context<'a> {
-    arena: &'a dyn ReadArena,
+    arena: &'a dyn ReadMdast,
     /// identifier (lowercase) → (url, title)
     definitions: FxHashMap<String, (String, Option<String>)>,
     /// footnote call list: (identifier, count), in encounter order.
@@ -273,7 +270,7 @@ struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    fn new(arena: &'a dyn ReadArena) -> Self {
+    fn new(arena: &'a dyn ReadMdast) -> Self {
         Context {
             arena,
             definitions: FxHashMap::default(),
@@ -314,7 +311,7 @@ fn to_position(node: &mdast_arena::ArenaNode) -> Option<Position> {
 }
 
 /// Recursively visit every node in document order.
-fn visit_all(arena: &dyn ReadArena, node_id: u32, visitor: &mut impl FnMut(u32)) {
+fn visit_all(arena: &dyn ReadMdast, node_id: u32, visitor: &mut impl FnMut(u32)) {
     visitor(node_id);
     for &child_id in arena.get_children(node_id) {
         visit_all(arena, child_id, visitor);
@@ -1104,7 +1101,7 @@ fn transform_footnote_definition(ctx: &mut Context<'_>, node_id: u32) -> NodeRes
     // Children are converted lazily when building the footnote section.
     // We just need to ensure the node_id is recorded (done in pre-pass).
     // But we still need to convert children for the footnote section. The
-    // pre-pass records the node_id; actual conversion happens in arena_to_hast
+    // pre-pass records the node_id; actual conversion happens in mdast_to_hast
     // when building the footer. Return None here.
     let _ = node_id;
     let _ = ctx;
@@ -1381,7 +1378,7 @@ fn transform_mdxjs_esm(
     }))
 }
 
-fn get_mdx_jsx_name(arena: &dyn ReadArena, node_id: u32) -> Option<String> {
+fn get_mdx_jsx_name(arena: &dyn ReadMdast, node_id: u32) -> Option<String> {
     let data = arena.get_type_data(node_id);
     if data.is_empty() {
         return None;

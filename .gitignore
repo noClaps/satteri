@@ -9,3 +9,4 @@ dist
 # napi-rs generated bindings
 packages/tryckeri/index.js
 packages/tryckeri/index.d.ts
+packages/tryckeri/bench/docs.ts

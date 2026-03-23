@@ -8,6 +8,20 @@
     ".": "./src/index.ts",
     "./arena-reader": "./src/arena-reader.ts"
   },
+  "scripts": {
+    "build:native": "napi build --manifest-path ../../crates/napi-binding/Cargo.toml --output-dir . --platform --release --esm",
+    "build:native:debug": "napi build --manifest-path ../../crates/napi-binding/Cargo.toml --output-dir . --platform --esm",
+    "build:ts": "tsc",
+    "build": "pnpm build:native && pnpm build:ts",
+    "dev": "tsc --watch",
+    "vitest": "vitest",
+    "test": "vitest run",
+    "bench": "vitest bench --run"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "vitest": "^4"
+  },
   "napi": {
     "binaryName": "tryckeri_napi",
     "targets": [
@@ -17,18 +31,5 @@
       "x86_64-pc-windows-msvc",
       "wasm32-wasip1-threads"
     ]
-  },
-  "scripts": {
-    "build:native": "napi build --manifest-path ../../crates/napi-binding/Cargo.toml --output-dir . --platform --release",
-    "build:native:debug": "napi build --manifest-path ../../crates/napi-binding/Cargo.toml --output-dir . --platform",
-    "build:ts": "tsc",
-    "build": "pnpm build:native && pnpm build:ts",
-    "dev": "tsc --watch",
-    "test": "vitest run",
-    "bench": "vitest bench --run"
-  },
-  "devDependencies": {
-    "@types/node": "^25.5.0",
-    "vitest": "^4"
   }
 }

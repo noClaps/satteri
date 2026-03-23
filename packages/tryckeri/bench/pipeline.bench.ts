@@ -10,7 +10,7 @@
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import { bench, describe } from "vitest";
 import {
   parseToBuffer,
@@ -20,13 +20,12 @@ import {
   hastBufferToHtmlStr,
   compileMdx,
   compileMdxFromBuffer,
-} from "../src/parse.js";
+} from "../src/index.js";
 import { MdastReader } from "../src/mdast-reader.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const MARKDOWN = readFileSync(join(__dirname, "../../crates/bench/fixtures/markdown.md"), "utf8");
-
+const MARKDOWN = readFileSync(new URL("./markdown.md", import.meta.url), "utf8");
 const MDX = `import {Chart} from './chart.js'
 
 # Hello, world
@@ -43,7 +42,7 @@ Some *emphasis* and **strong** content.
 `;
 
 // Pre-computed buffers so intermediate benchmarks measure only their step.
-const mdastBuf = parseToBuffer(MARKDOWN);
+const mdastBuf = Buffer.from(parseToBuffer(MARKDOWN));
 const hastBuf = mdastBufferToHastBuffer(mdastBuf);
 
 // ---------------------------------------------------------------------------
@@ -74,7 +73,7 @@ describe("hast", () => {
   });
 
   bench("full pipeline — parseToBuffer → mdastBufferToHastBuffer → hastBufferToHtmlStr", () => {
-    const buf = parseToBuffer(MARKDOWN);
+    const buf = Buffer.from(parseToBuffer(MARKDOWN));
     const hast = mdastBufferToHastBuffer(buf);
     hastBufferToHtmlStr(hast);
   });
@@ -114,7 +113,7 @@ try {
   // Pre-parse MDX with MDX constructs enabled so compileMdxFromBuffer has a valid buffer.
   // (parseToBuffer uses default ParseOptions which don't enable MDX constructs, so we
   // use compileMdx itself as the parse step for that bench.)
-  const mdxBuf = parseToBuffer(MDX); // MDAST binary (no MDX constructs — intentional: measures the buffer path perf)
+  const mdxBuf = Buffer.from(parseToBuffer(MDX)); // MDAST binary (no MDX constructs — intentional: measures the buffer path perf)
   describe("mdx", () => {
     bench("compileMdx — MDX source → JavaScript (parse + compile)", () => {
       compileMdx(MDX);

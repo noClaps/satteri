@@ -8,7 +8,10 @@ use mdast_arena::codec::{
     decode_list_data, decode_list_item_data, decode_math_data, decode_mdx_jsx_element_data,
     decode_reference_data, decode_string_ref_data, decode_table_data,
 };
-use mdast_arena::mdx_types::{Point, Position, sanitize_uri as sanitize};
+use mdast_arena::mdx_types::{
+    AttributeContent, AttributeValue, AttributeValueExpression, MdxJsxAttribute,
+    MdxJsxExpressionAttribute, Point, Position, sanitize_uri as sanitize,
+};
 use mdast_arena::{NodeType, ReadMdast};
 use rustc_hash::FxHashMap;
 
@@ -148,7 +151,7 @@ pub fn mdast_to_hast(arena: &dyn ReadMdast) -> hast::Node {
                             hast::PropertyValue::String("Back to content".into()),
                         ),
                         (
-                            "className".into(),
+                            "class".into(),
                             hast::PropertyValue::SpaceSeparated(vec![
                                 "data-footnote-backref".into(),
                             ]),
@@ -206,7 +209,7 @@ pub fn mdast_to_hast(arena: &dyn ReadMdast) -> hast::Node {
             properties: vec![
                 ("dataFootnotes".into(), hast::PropertyValue::Boolean(true)),
                 (
-                    "className".into(),
+                    "class".into(),
                     hast::PropertyValue::SpaceSeparated(vec!["footnotes".into()]),
                 ),
             ],
@@ -219,7 +222,7 @@ pub fn mdast_to_hast(arena: &dyn ReadMdast) -> hast::Node {
                             hast::PropertyValue::String("footnote-label".into()),
                         ),
                         (
-                            "className".into(),
+                            "class".into(),
                             hast::PropertyValue::SpaceSeparated(vec!["sr-only".into()]),
                         ),
                     ],
@@ -630,7 +633,7 @@ fn transform_list(ctx: &mut Context<'_>, node_id: u32, position: Option<Position
 
     if contains_task_list {
         properties.push((
-            "className".into(),
+            "class".into(),
             hast::PropertyValue::SpaceSeparated(vec!["contains-task-list".into()]),
         ));
     }
@@ -677,7 +680,7 @@ fn transform_list_item(
 
     if let Some(checked_val) = checked {
         properties.push((
-            "className".into(),
+            "class".into(),
             hast::PropertyValue::SpaceSeparated(vec!["task-list-item".into()]),
         ));
 
@@ -723,6 +726,18 @@ fn transform_list_item(
         }
     }
 
+    // Strip trailing whitespace-only text nodes (artifact of parser not wrapping
+    // list item content in paragraphs inside JSX elements).
+    while let Some(last) = children.last() {
+        if let hast::Node::Text(t) = last {
+            if inter_element_whitespace(&t.value) {
+                children.pop();
+                continue;
+            }
+        }
+        break;
+    }
+
     children.reverse();
     let mut result = vec![];
     let mut head = true;
@@ -737,7 +752,13 @@ fn transform_list_item(
             is_p = true;
         }
 
-        if loose || !head || !is_p {
+        // For tight list items whose text content isn't wrapped in <p> (e.g. inside
+        // JSX elements), treat the first inline child the same as an unwrapped
+        // paragraph: skip the leading \n.
+        let is_inline = matches!(&child, hast::Node::Text(_));
+        let treat_as_p = is_p || (head && !loose && is_inline);
+
+        if loose || !head || !treat_as_p {
             result.push(hast::Node::Text(hast::Text {
                 value: "\n".into(),
                 position: None,
@@ -753,7 +774,7 @@ fn transform_list_item(
         }
 
         head = false;
-        tail_p = is_p;
+        tail_p = treat_as_p;
     }
 
     if !empty && (loose || !tail_p) {
@@ -791,12 +812,14 @@ fn transform_code(ctx: &mut Context<'_>, node_id: u32, position: Option<Position
     };
 
     let mut code_value = value;
-    code_value.push('\n');
+    if !code_value.ends_with('\n') {
+        code_value.push('\n');
+    }
 
     let mut properties = vec![];
     if let Some(lang) = lang {
         properties.push((
-            "className".into(),
+            "class".into(),
             hast::PropertyValue::SpaceSeparated(vec![format!("language-{lang}")]),
         ));
     }
@@ -903,7 +926,7 @@ fn transform_math(ctx: &mut Context<'_>, node_id: u32, position: Option<Position
         children: vec![hast::Node::Element(hast::Element {
             tag_name: "code".into(),
             properties: vec![(
-                "className".into(),
+                "class".into(),
                 hast::PropertyValue::SpaceSeparated(vec![
                     "language-math".into(),
                     "math-display".into(),
@@ -933,7 +956,7 @@ fn transform_inline_math(
     NodeResult::Node(hast::Node::Element(hast::Element {
         tag_name: "code".into(),
         properties: vec![(
-            "className".into(),
+            "class".into(),
             hast::PropertyValue::SpaceSeparated(vec!["language-math".into(), "math-inline".into()]),
         )],
         children: vec![hast::Node::Text(hast::Text {
@@ -1321,10 +1344,11 @@ fn transform_mdx_jsx_flow_element(
     position: Option<Position>,
 ) -> NodeResult {
     let name = get_mdx_jsx_name(ctx.arena, node_id);
+    let attributes = get_mdx_jsx_attributes(ctx.arena, node_id);
     let children = all_children(ctx, node_id);
     NodeResult::Node(hast::Node::MdxJsxElement(hast::MdxJsxElement {
         name,
-        attributes: vec![],
+        attributes,
         children,
         position,
     }))
@@ -1336,10 +1360,11 @@ fn transform_mdx_jsx_text_element(
     position: Option<Position>,
 ) -> NodeResult {
     let name = get_mdx_jsx_name(ctx.arena, node_id);
+    let attributes = get_mdx_jsx_attributes(ctx.arena, node_id);
     let children = all_children(ctx, node_id);
     NodeResult::Node(hast::Node::MdxJsxTextElement(hast::MdxJsxElement {
         name,
-        attributes: vec![],
+        attributes,
         children,
         position,
     }))
@@ -1389,4 +1414,225 @@ fn get_mdx_jsx_name(arena: &dyn ReadMdast, node_id: u32) -> Option<String> {
     } else {
         None
     }
+}
+
+/// Extract JSX attributes from the raw source text of an MDX JSX element node.
+fn get_mdx_jsx_attributes(arena: &dyn ReadMdast, node_id: u32) -> Vec<AttributeContent> {
+    let raw = arena.get_node(node_id);
+    let source = arena.source();
+    let text = &source[raw.start_offset as usize..raw.end_offset as usize];
+
+    // Extract just the opening tag: everything up to the first `>` that isn't inside
+    // braces or strings. For self-closing `<Foo ... />` the whole thing is the opening tag.
+    // For `<Foo ...>children</Foo>` we want just `<Foo ...>`.
+    let opening_tag = extract_opening_tag(text);
+    parse_jsx_attributes(opening_tag)
+}
+
+/// Extract the opening tag portion from a JSX element's raw source.
+/// Handles brace/string nesting so `>` inside expressions doesn't terminate early.
+fn extract_opening_tag(text: &str) -> &str {
+    let mut depth = 0i32;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut in_backtick = false;
+    let mut prev = '\0';
+
+    for (i, ch) in text.char_indices() {
+        if in_single_quote {
+            if ch == '\'' && prev != '\\' {
+                in_single_quote = false;
+            }
+        } else if in_double_quote {
+            if ch == '"' && prev != '\\' {
+                in_double_quote = false;
+            }
+        } else if in_backtick {
+            if ch == '`' && prev != '\\' {
+                in_backtick = false;
+            }
+        } else {
+            match ch {
+                '\'' => in_single_quote = true,
+                '"' => in_double_quote = true,
+                '`' => in_backtick = true,
+                '{' => depth += 1,
+                '}' => depth -= 1,
+                '>' if depth == 0 => return &text[..=i],
+                _ => {}
+            }
+        }
+        prev = ch;
+    }
+    text
+}
+
+/// Parse JSX attributes from an opening tag string like `<Foo bar="baz" qux={expr} />`.
+fn parse_jsx_attributes(tag: &str) -> Vec<AttributeContent> {
+    let mut attrs = Vec::new();
+    let bytes = tag.as_bytes();
+    let len = bytes.len();
+
+    // Skip past `<` and the tag name.
+    let mut i = 1; // skip '<'
+
+    // Skip optional `/` for closing tags (shouldn't happen here, but be safe)
+    if i < len && bytes[i] == b'/' {
+        i += 1;
+    }
+
+    // Skip whitespace
+    while i < len && bytes[i].is_ascii_whitespace() {
+        i += 1;
+    }
+
+    // Skip tag name: identifier chars (letters, digits, `.`, `-`, `:`, `_`)
+    while i < len && (bytes[i].is_ascii_alphanumeric() || matches!(bytes[i], b'.' | b'-' | b':' | b'_')) {
+        i += 1;
+    }
+
+    // Now parse attributes until we hit `>` or `/>` or end
+    loop {
+        // Skip whitespace
+        while i < len && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+
+        if i >= len {
+            break;
+        }
+
+        // End of tag?
+        if bytes[i] == b'>' || (bytes[i] == b'/' && i + 1 < len && bytes[i + 1] == b'>') {
+            break;
+        }
+
+        // Spread expression attribute: `{...expr}`
+        if bytes[i] == b'{' {
+            let start = i + 1; // skip `{`
+            i += 1;
+            let mut depth = 1i32;
+            while i < len && depth > 0 {
+                match bytes[i] {
+                    b'{' => depth += 1,
+                    b'}' => depth -= 1,
+                    b'\'' | b'"' | b'`' => {
+                        let quote = bytes[i];
+                        i += 1;
+                        while i < len && bytes[i] != quote {
+                            if bytes[i] == b'\\' {
+                                i += 1; // skip escaped char
+                            }
+                            i += 1;
+                        }
+                        // i now points at closing quote, loop will advance
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            // start..i-1 is the content inside { }
+            let value = tag[start..i.saturating_sub(1)].trim().to_string();
+            attrs.push(AttributeContent::Expression(MdxJsxExpressionAttribute {
+                value,
+                stops: vec![],
+            }));
+            continue;
+        }
+
+        // Named attribute: `name`, `name="value"`, `name={expr}`
+        let name_start = i;
+        while i < len && (bytes[i].is_ascii_alphanumeric() || matches!(bytes[i], b'-' | b':' | b'_')) {
+            i += 1;
+        }
+
+        if i == name_start {
+            // Not a valid attribute start, skip this byte to avoid infinite loop
+            i += 1;
+            continue;
+        }
+
+        let name = tag[name_start..i].to_string();
+
+        // Skip whitespace
+        while i < len && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+
+        // Check for `=`
+        if i < len && bytes[i] == b'=' {
+            i += 1; // skip `=`
+
+            // Skip whitespace
+            while i < len && bytes[i].is_ascii_whitespace() {
+                i += 1;
+            }
+
+            if i >= len {
+                // Attribute with `=` but no value (malformed), treat as boolean
+                attrs.push(AttributeContent::Property(MdxJsxAttribute { name, value: None }));
+                continue;
+            }
+
+            if bytes[i] == b'"' || bytes[i] == b'\'' {
+                // String literal value
+                let quote = bytes[i];
+                i += 1;
+                let val_start = i;
+                while i < len && bytes[i] != quote {
+                    if bytes[i] == b'\\' {
+                        i += 1; // skip escaped char
+                    }
+                    i += 1;
+                }
+                let value = tag[val_start..i].to_string();
+                if i < len {
+                    i += 1; // skip closing quote
+                }
+                attrs.push(AttributeContent::Property(MdxJsxAttribute {
+                    name,
+                    value: Some(AttributeValue::Literal(value)),
+                }));
+            } else if bytes[i] == b'{' {
+                // Expression value
+                i += 1; // skip `{`
+                let val_start = i;
+                let mut depth = 1i32;
+                while i < len && depth > 0 {
+                    match bytes[i] {
+                        b'{' => depth += 1,
+                        b'}' => depth -= 1,
+                        b'\'' | b'"' | b'`' => {
+                            let q = bytes[i];
+                            i += 1;
+                            while i < len && bytes[i] != q {
+                                if bytes[i] == b'\\' {
+                                    i += 1;
+                                }
+                                i += 1;
+                            }
+                        }
+                        _ => {}
+                    }
+                    i += 1;
+                }
+                let value = tag[val_start..i.saturating_sub(1)].to_string();
+                attrs.push(AttributeContent::Property(MdxJsxAttribute {
+                    name,
+                    value: Some(AttributeValue::Expression(AttributeValueExpression {
+                        value,
+                        stops: vec![],
+                    })),
+                }));
+            } else {
+                // Unquoted value — shouldn't happen in valid JSX, treat as boolean
+                attrs.push(AttributeContent::Property(MdxJsxAttribute { name, value: None }));
+            }
+        } else {
+            // Boolean attribute (no `=`)
+            attrs.push(AttributeContent::Property(MdxJsxAttribute { name, value: None }));
+        }
+    }
+
+    attrs
 }

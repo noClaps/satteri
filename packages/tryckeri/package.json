@@ -3,10 +3,10 @@
   "version": "0.1.0",
   "description": "High-performance Markdown processing with Rust arena backend",
   "type": "module",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "exports": {
-    ".": "./src/index.ts",
-    "./arena-reader": "./src/arena-reader.ts"
+    ".": "./dist/index.js",
+    "./arena-reader": "./dist/arena-reader.js"
   },
   "scripts": {
     "build:native": "napi build --manifest-path ../../crates/napi-binding/Cargo.toml --output-dir . --platform --release --esm",

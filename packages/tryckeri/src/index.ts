@@ -6,7 +6,9 @@ export { definePlugin } from "./plugin.js";
 export { createProcessor, ProcessorContext } from "./processor.js";
 export {
   parseToBuffer,
+  parseMdxToBuffer,
   parseToHastBuffer,
+  parseMdxToHastBuffer,
   mdastBufferToHastBuffer,
   hastBufferToHtmlStr,
   compileMdx,

@@ -106,8 +106,15 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             let save = line_start.clone();
             let outer_indent = line_start.scan_space_upto(4);
             if outer_indent >= 4 {
-                line_start = save;
-                break;
+                if self.options.contains(Options::ENABLE_MDX) {
+                    // MDX has no indented code blocks, so consume any extra
+                    // leading whitespace and continue looking for containers
+                    // (list markers, blockquotes) at deeper indentation.
+                    line_start.scan_all_space();
+                } else {
+                    line_start = save;
+                    break;
+                }
             }
             if self.options.contains(Options::ENABLE_FOOTNOTES) {
                 // Footnote definitions
@@ -708,6 +715,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             current_container,
             self.options.contains(Options::ENABLE_FOOTNOTES),
             self.options.contains(Options::ENABLE_DEFINITION_LIST),
+            self.options.contains(Options::ENABLE_MDX),
             &self.tree,
             tree_position,
         ) {
@@ -2220,6 +2228,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             current_container,
             self.options.contains(Options::ENABLE_FOOTNOTES),
             self.options.contains(Options::ENABLE_DEFINITION_LIST),
+            self.options.contains(Options::ENABLE_MDX),
             &self.tree,
             tree_position,
         ) {
@@ -2374,6 +2383,7 @@ fn scan_paragraph_interrupt_no_table(
     current_container: bool,
     has_footnote: bool,
     definition_list: bool,
+    mdx: bool,
     tree: &Tree<Item>,
     tree_position: usize,
 ) -> bool {
@@ -2393,6 +2403,8 @@ fn scan_paragraph_interrupt_no_table(
         })
         || bytes.starts_with(b"<")
             && (get_html_end_tag(&bytes[1..]).is_some() || starts_html_block_type_6(&bytes[1..]))
+        // MDX JSX flow elements also interrupt paragraphs
+        || (mdx && bytes.starts_with(b"<") && scan_mdx_jsx_block(bytes).is_some())
         || definition_list
             && ((current_container
                 && tree.peek_up().is_some_and(|cur| {

@@ -263,7 +263,7 @@ fn test_code_block_with_lang() {
                 if let Some(hast::Node::Element(code_el)) = code {
                     // Should have className="language-rust"
                     let has_class = code_el.properties.iter().any(|(k, v)| {
-                        k == "className"
+                        k == "class"
                             && matches!(
                                 v,
                                 hast::PropertyValue::SpaceSeparated(classes)
@@ -463,4 +463,46 @@ fn double_brace_object_expression() {
         "Double-brace expression failed: {:?}",
         result.err()
     );
+}
+
+/// List items inside JSX elements should not have extra leading/trailing newlines.
+/// Matches the output of `@mdx-js/mdx`.
+#[test]
+fn test_list_in_jsx_no_extra_newlines() {
+    let input = "<FileTree>\n- src/\n  - index.ts\n- package.json\n</FileTree>\n";
+    let result = mdxjs::compile(input, &mdxjs::Options::default()).unwrap();
+
+    // The last <li> should have a single child "package.json", not wrapped in newlines
+    assert!(
+        result.contains(r#"children: "package.json"#),
+        "last <li> should have single text child without newlines, got:\n{result}"
+    );
+    // The first <li> children should NOT start with "\n" (no leading newline)
+    assert!(
+        !result.contains(r#"li, { children: [
+            "\n",
+            "src/"#),
+        "first <li> should not have leading newline before text, got:\n{result}"
+    );
+}
+#[test]
+fn test_loose_list_jsx_mdast() {
+    let input = "1. Item one\n\n2. Add config:\n    <FileTree>\n      - public\n        - admin\n    </FileTree>\n";
+    let (arena, errors) = parser::parse(input, &parser::ParseOptions::mdx());
+    
+    eprintln!("Parse errors: {:?}", errors);
+    
+    fn dump(arena: &dyn mdast_arena::ReadMdast, node_id: u32, indent: usize) {
+        let raw = arena.get_node(node_id);
+        let nt = mdast_arena::NodeType::from_u8(raw.node_type).unwrap_or(mdast_arena::NodeType::Root);
+        let pad = " ".repeat(indent);
+        let src = &arena.source()[raw.start_offset as usize..raw.end_offset as usize];
+        let preview: String = src.chars().take(40).collect();
+        eprintln!("{pad}{nt:?} (id={}, {}..{}) {:?}", raw.id, raw.start_offset, raw.end_offset, preview);
+        for &child_id in arena.get_children(node_id) {
+            dump(arena, child_id, indent + 2);
+        }
+    }
+    
+    dump(&arena, 0, 0);
 }

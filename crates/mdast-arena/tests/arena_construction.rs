@@ -41,7 +41,7 @@ fn heading_with_text_child() {
 
     assert_eq!(arena.get_children(root_id), &[heading_id]);
     assert_eq!(arena.get_children(heading_id), &[text_id]);
-    assert_eq!(arena.get_children(text_id), &[]);
+    assert_eq!(arena.get_children(text_id), &[] as &[u32]);
 }
 
 /// Build a multi-level tree and verify children relationships.

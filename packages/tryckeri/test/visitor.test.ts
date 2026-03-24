@@ -15,7 +15,7 @@ function setup() {
 test("visitor with no subscriptions produces no mutations, no diagnostics", () => {
   const { reader, dataMap } = setup();
   const result = visitMdast(reader, {}, dataMap);
-  expect(result.mutations.length).toBe(0);
+  expect(result.commandBuffer.length).toBe(0);
   expect(result.diagnostics.length).toBe(0);
   expect(result.hasMutations).toBe(false);
 });
@@ -52,7 +52,7 @@ test('visitor callback receives correct MDAST node (type="heading", depth=1)', (
   expect(capturedNode!.depth).toBe(1);
 });
 
-test("return value from visitor creates a Replace mutation", () => {
+test("return value from visitor creates a Replace command in the buffer", () => {
   const { reader, dataMap } = setup();
   const newNode = { type: "paragraph", children: [] } as unknown as MdastNode;
   const result = visitMdast(
@@ -64,12 +64,13 @@ test("return value from visitor creates a Replace mutation", () => {
     },
     dataMap,
   );
-  expect(result.mutations.length).toBe(1);
-  expect(result.mutations[0]!.type).toBe(MutationType.Replace);
-  expect(result.mutations[0]!.newNode).toBe(newNode);
+  // The command buffer should contain a REPLACE command (0x0B)
+  expect(result.commandBuffer.length).toBeGreaterThan(0);
+  expect(result.commandBuffer[0]).toBe(0x0b); // CMD_REPLACE
+  expect(result.hasMutations).toBe(true);
 });
 
-test("context.removeNode creates a Remove mutation", () => {
+test("context.removeNode creates a Remove command in the buffer", () => {
   const { reader, dataMap } = setup();
   const result = visitMdast(
     reader,
@@ -80,9 +81,13 @@ test("context.removeNode creates a Remove mutation", () => {
     },
     dataMap,
   );
-  expect(result.mutations.length).toBe(1);
-  expect(result.mutations[0]!.type).toBe(MutationType.Remove);
-  expect(result.mutations[0]!.nodeId).toBe(1);
+  // The command buffer should contain a REMOVE command (0x01) with nodeId=1
+  expect(result.commandBuffer.length).toBe(5); // 1 byte cmd + 4 bytes nodeId
+  expect(result.commandBuffer[0]).toBe(0x01); // CMD_REMOVE
+  // Read nodeId as little-endian u32
+  const view = new DataView(result.commandBuffer.buffer, result.commandBuffer.byteOffset);
+  expect(view.getUint32(1, true)).toBe(1);
+  expect(result.hasMutations).toBe(true);
 });
 
 test("context.report creates a diagnostic entry", () => {

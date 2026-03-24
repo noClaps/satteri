@@ -12,6 +12,7 @@
 pub mod arena;
 pub mod builder;
 pub mod codec;
+pub mod commands;
 pub mod line_index;
 pub mod mdx_types;
 pub mod node;
@@ -39,3 +40,4 @@ pub use node::{ArenaNode, NodeType, StringRef, NODE_STRUCT_SIZE};
 pub use raw_buffer::{BufferError, BufferHeader, MdastView, BUFFER_MAGIC, BUFFER_VERSION};
 pub use read_arena::ReadMdast;
 pub use rebuild::{rebuild, Patch};
+pub use commands::{apply_commands, CommandError};

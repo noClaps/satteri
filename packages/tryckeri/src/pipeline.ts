@@ -4,7 +4,11 @@ import { MdastReader } from "./mdast-reader.js";
 import { materializeNode } from "./materializer.js";
 import type { PluginDefinition } from "./plugin.js";
 import type { MdastNode } from "./types.js";
-import type { Mutation, Diagnostic } from "./visitor.js";
+import type { Diagnostic } from "./visitor.js";
+
+// applyMutations is the NAPI function that takes an arena buffer + command
+// buffer and returns a new arena buffer with all mutations applied.
+import { applyMutations } from "../index.js";
 
 export class ProcessorContext {
   readonly #diagnostics: Diagnostic[] = [];
@@ -60,15 +64,25 @@ export function runPluginsOnBuffer(
     const wrappedPlugin = wrapInstance(instance, fileContext);
     const result = visitMdast(reader, wrappedPlugin, dm);
     allDiagnostics.push(...result.diagnostics);
-    totalMutations += result.mutations.length;
 
-    // Structural mutations require arena rebuild (Phase 8+).
-    // SetProperty mutations are data-only — already applied via DataMap.
-    const structural = result.mutations.filter((m: Mutation) => m.type !== "setProperty");
-    structuralMutations += structural.length;
+    if (result.hasMutations) {
+      totalMutations += 1;
+      structuralMutations += 1;
 
-    if (structural.length > 0) {
-      currentBuffer = applyMutationsJS(reader, currentBuffer, structural, dm);
+
+      // Send the binary command buffer to Rust for application
+      const newBuffer = applyMutations(
+        Buffer.from(
+          currentBuffer instanceof Uint8Array
+            ? currentBuffer.buffer.slice(
+                currentBuffer.byteOffset,
+                currentBuffer.byteOffset + currentBuffer.byteLength,
+              )
+            : currentBuffer,
+        ),
+        Buffer.from(result.commandBuffer),
+      );
+      currentBuffer = newBuffer;
     }
   }
 
@@ -114,14 +128,4 @@ function wrapInstance(
   }
 
   return wrapped as ReturnType<PluginDefinition["createOnce"]>;
-}
-
-function applyMutationsJS(
-  _reader: MdastReader,
-  buffer: ArrayBuffer | Uint8Array,
-  _mutations: Mutation[],
-  _dataMap: DataMap,
-): ArrayBuffer | Uint8Array {
-  // Phase 6: return same buffer. Structural mutations require Rust arena rebuild (Phase 8+).
-  return buffer;
 }

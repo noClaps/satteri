@@ -107,10 +107,21 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             let outer_indent = line_start.scan_space_upto(4);
             if outer_indent >= 4 {
                 if self.options.contains(Options::ENABLE_MDX) {
-                    // MDX has no indented code blocks, so consume any extra
-                    // leading whitespace and continue looking for containers
-                    // (list markers, blockquotes) at deeper indentation.
+                    // MDX has no indented code blocks.  Speculatively scan all
+                    // remaining whitespace to look for a list marker at deeper
+                    // indentation.  If no new container is found we restore and
+                    // break so that the indentation is preserved for content
+                    // that belongs to an existing list item.
+                    let mdx_save = line_start.clone();
                     line_start.scan_all_space();
+                    let mdx_ix = start_ix + line_start.bytes_scanned();
+                    // Quick check: is there a list marker or blockquote here?
+                    let has_container = scan_listitem(&bytes[mdx_ix..]).is_some()
+                        || (mdx_ix < bytes.len() && bytes[mdx_ix] == b'>');
+                    if !has_container {
+                        line_start = save;
+                        break;
+                    }
                 } else {
                     line_start = save;
                     break;
@@ -375,11 +386,16 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                         if self.begin_list_item.is_some() =>
                     {
                         self.last_line_blank = true;
-                        // This is a blank list item.
-                        // While the list itself can be continued no matter how many blank lines
-                        // there are between this one and the next one, it cannot nest anything
-                        // else, so its indentation should not be subtracted from the line start.
-                        *indent = 0;
+                        if !self.options.contains(Options::ENABLE_MDX) {
+                            // This is a blank list item.
+                            // While the list itself can be continued no matter how many blank lines
+                            // there are between this one and the next one, it cannot nest anything
+                            // else, so its indentation should not be subtracted from the line start.
+                            // In MDX mode we keep the indent because there are no indented code
+                            // blocks, so continuation content at any depth should remain part of
+                            // the list item.
+                            *indent = 0;
+                        }
                     }
                     _ => {
                         self.last_line_blank = true;
@@ -1595,17 +1611,21 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                 return ix;
             }
             if self.options.contains(Options::ENABLE_MDX) {
-                // MDX: consume all leading whitespace before checking for the
-                // closing fence.  Indented code blocks don't exist in MDX so
-                // there is no ambiguity with deep indentation.
-                line_start.scan_all_space();
-                let close_ix = ix + line_start.bytes_scanned();
+                // MDX: check for closing fence after consuming all leading whitespace.
+                // Use a separate scanner so the content line_start only strips the
+                // fence indent (preserving code indentation).
+                let mut close_line_start = line_start.clone();
+                close_line_start.scan_all_space();
+                let close_ix = ix + close_line_start.bytes_scanned();
                 if let Some(n) = scan_closing_code_fence(&bytes[close_ix..], fence_ch, n_fence_char)
                 {
                     ix = close_ix + n;
                     self.pop(ix);
                     return ix + scan_blank_line(&bytes[ix..]).unwrap_or(0);
                 }
+                // For content lines, only strip up to `indent` spaces (the fence's
+                // own indentation), preserving any deeper indentation as code content.
+                line_start.scan_space(indent);
             } else {
                 line_start.scan_space(indent);
                 let mut close_line_start = line_start.clone();

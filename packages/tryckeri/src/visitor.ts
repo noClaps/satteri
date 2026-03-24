@@ -1,4 +1,5 @@
 import { materializeNode, TYPE_NAMES } from "./materializer.js";
+import { CommandBuffer, classifyReturn } from "./command-buffer.js";
 import type { MdastNode } from "./types.js";
 import type { MdastReader } from "./mdast-reader.js";
 import type { DataMap } from "./data-map.js";
@@ -69,7 +70,7 @@ const VISITOR_KEYS = new Set([
 ]);
 
 export class VisitorContext {
-  readonly #mutations: Mutation[] = [];
+  readonly #commandBuffer: CommandBuffer = new CommandBuffer();
   readonly #diagnostics: Diagnostic[] = [];
   readonly #reader: MdastReader;
   readonly #dataMap: DataMap;
@@ -81,43 +82,35 @@ export class VisitorContext {
   }
 
   removeNode(node: MdastNode): void {
-    this.#mutations.push({ type: MutationType.Remove, nodeId: node._nodeId });
+    this.#commandBuffer.removeNode(node._nodeId);
   }
 
   insertBefore(node: MdastNode, newNode: MdastNode): void {
-    this.#mutations.push({ type: MutationType.InsertBefore, nodeId: node._nodeId, newNode });
+    this.#commandBuffer.insertBefore(node._nodeId, newNode);
   }
 
   insertAfter(node: MdastNode, newNode: MdastNode): void {
-    this.#mutations.push({ type: MutationType.InsertAfter, nodeId: node._nodeId, newNode });
+    this.#commandBuffer.insertAfter(node._nodeId, newNode);
   }
 
   wrapNode(node: MdastNode, parentNode: MdastNode): void {
-    this.#mutations.push({ type: MutationType.Wrap, nodeId: node._nodeId, newNode: parentNode });
+    this.#commandBuffer.wrapNode(node._nodeId, parentNode);
   }
 
   prependChild(node: MdastNode, childNode: MdastNode): void {
-    this.#mutations.push({
-      type: MutationType.PrependChild,
-      nodeId: node._nodeId,
-      newNode: childNode,
-    });
+    this.#commandBuffer.prependChild(node._nodeId, childNode);
   }
 
   appendChild(node: MdastNode, childNode: MdastNode): void {
-    this.#mutations.push({
-      type: MutationType.AppendChild,
-      nodeId: node._nodeId,
-      newNode: childNode,
-    });
+    this.#commandBuffer.appendChild(node._nodeId, childNode);
   }
 
   replaceNode(node: MdastNode, newNode: MdastNode): void {
-    this.#mutations.push({ type: MutationType.Replace, nodeId: node._nodeId, newNode });
+    this.#commandBuffer.replace(node._nodeId, newNode);
   }
 
   setProperty(node: MdastNode, key: string, value: unknown): void {
-    this.#mutations.push({ type: MutationType.SetProperty, nodeId: node._nodeId, key, value });
+    this.#commandBuffer.setProperty(node.type, node._nodeId, key, value);
   }
 
   report({
@@ -145,9 +138,11 @@ export class VisitorContext {
     return this.#reader.getSource();
   }
 
-  getMutations(): Mutation[] {
-    return this.#mutations;
+  /** Get the binary command buffer for all mutations recorded via context methods. */
+  getCommandBuffer(): CommandBuffer {
+    return this.#commandBuffer;
   }
+
   getDiagnostics(): Diagnostic[] {
     return this.#diagnostics;
   }
@@ -161,13 +156,18 @@ export interface PluginInstance {
 }
 
 export interface VisitResult {
-  mutations: Mutation[];
+  /** Binary command buffer containing all mutations. */
+  commandBuffer: Uint8Array;
   diagnostics: Diagnostic[];
   hasMutations: boolean;
 }
 
 /**
  * Walk the MDAST and dispatch to plugin visitor functions.
+ *
+ * Mutations are collected into a binary command buffer. Return values from
+ * visitor functions are classified (raw/rawHtml/structured) and encoded
+ * as REPLACE commands in the buffer.
  */
 export function visitMdast(
   reader: MdastReader,
@@ -178,14 +178,28 @@ export function visitMdast(
 
   plugin.before?.(context);
 
-  const mutations: Mutation[] = [];
+  // Separate CommandBuffer for return-value mutations (replace commands from
+  // visitor return values). These are merged with the context's buffer at the end.
+  const returnBuffer = new CommandBuffer();
 
   if (typeof plugin.transformRoot === "function") {
     // Full materialization path
     const root = materializeNode(reader, 0, dataMap);
     const result = plugin.transformRoot(root, context);
     if (result !== undefined && result !== null) {
-      mutations.push({ type: MutationType.Replace, nodeId: 0, newNode: result });
+      const cls = classifyReturn(result);
+      switch (cls) {
+        case "raw_markdown":
+          returnBuffer.replace(0, result as unknown as { raw: string });
+          break;
+        case "raw_html":
+          returnBuffer.replace(0, result as unknown as { rawHtml: string });
+          break;
+        case "structured_node":
+          returnBuffer.replace(0, result);
+          break;
+        // no_change: do nothing
+      }
     }
   } else {
     // Fast path: walk raw bytes, only materialize subscribed node types
@@ -193,7 +207,7 @@ export function visitMdast(
     // Build reverse map: numeric type → visitor function
     const TYPE_TO_VISITOR = new Map<
       number,
-      (node: MdastNode, context: VisitorContext) => MdastNode | undefined | null
+      (node: MdastNode, context: VisitorContext) => unknown
     >();
     for (const [name, fn] of Object.entries(plugin)) {
       if (VISITOR_KEYS.has(name) && typeof fn === "function") {
@@ -201,7 +215,7 @@ export function visitMdast(
           if (typeName === name) {
             TYPE_TO_VISITOR.set(
               Number(num),
-              fn as (node: MdastNode, context: VisitorContext) => MdastNode | undefined | null,
+              fn as (node: MdastNode, context: VisitorContext) => unknown,
             );
             break;
           }
@@ -220,7 +234,19 @@ export function visitMdast(
         const node = materializeNode(reader, nodeId, dataMap);
         const result = visitor.call(plugin, node, context);
         if (result !== undefined && result !== null) {
-          mutations.push({ type: MutationType.Replace, nodeId, newNode: result });
+          const cls = classifyReturn(result);
+          switch (cls) {
+            case "raw_markdown":
+              returnBuffer.replace(nodeId, result as unknown as { raw: string });
+              break;
+            case "raw_html":
+              returnBuffer.replace(nodeId, result as unknown as { rawHtml: string });
+              break;
+            case "structured_node":
+              returnBuffer.replace(nodeId, result as MdastNode);
+              break;
+            // no_change: do nothing
+          }
         }
       }
 
@@ -233,12 +259,23 @@ export function visitMdast(
 
   plugin.after?.(context);
 
-  const allMutations = [...mutations, ...context.getMutations()];
-  const diagnostics = context.getDiagnostics();
+  // Merge: return-value commands first, then context commands
+  const ctxBuf = context.getCommandBuffer().getBuffer();
+  const retBuf = returnBuffer.getBuffer();
+  const totalLen = retBuf.length + ctxBuf.length;
+
+  let merged: Uint8Array;
+  if (totalLen === 0) {
+    merged = new Uint8Array(0);
+  } else {
+    merged = new Uint8Array(totalLen);
+    merged.set(retBuf, 0);
+    merged.set(ctxBuf, retBuf.length);
+  }
 
   return {
-    mutations: allMutations,
-    diagnostics,
-    hasMutations: allMutations.length > 0,
+    commandBuffer: merged,
+    diagnostics: context.getDiagnostics(),
+    hasMutations: totalLen > 0,
   };
 }

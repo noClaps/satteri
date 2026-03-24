@@ -346,6 +346,8 @@ checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 name = "mdast-arena"
 version = "0.1.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "unicode-id",
 ]
 
@@ -1060,6 +1062,7 @@ dependencies = [
  "napi-build",
  "napi-derive",
  "parser",
+ "serde_json",
  "tryckeri-hast",
 ]
 

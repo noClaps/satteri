@@ -506,3 +506,13 @@ fn test_loose_list_jsx_mdast() {
     
     dump(&arena, 0, 0);
 }
+
+#[test]
+fn test_loose_list_paragraphs() {
+    let input = "1. First item\n\n    Continuation paragraph.\n\n2. Second item\n";
+    let result = mdxjs::compile(input, &mdxjs::Options::default()).unwrap();
+    eprintln!("{result}");
+    // Loose list items should have <p> wrapped content
+    let p_count = result.matches("_components.p").count();
+    assert!(p_count >= 3, "loose list should have at least 3 <p> references, got {p_count}");
+}

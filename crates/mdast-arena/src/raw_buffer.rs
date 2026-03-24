@@ -238,6 +238,48 @@ impl<'a> MdastView<'a> {
     pub fn node_count(&self) -> u32 {
         self.header.node_count
     }
+
+    /// Convert this read-only view into an owned `MdastArena` by copying all data.
+    pub fn to_arena(&self) -> MdastArena {
+        let node_count = self.header.node_count as usize;
+        let nodes_start = self.header.nodes_offset as usize;
+        let nodes: Vec<ArenaNode> = (0..node_count)
+            .map(|i| {
+                let offset = nodes_start + i * NODE_STRUCT_SIZE;
+                let mut node = std::mem::MaybeUninit::<ArenaNode>::uninit();
+                unsafe {
+                    std::ptr::copy_nonoverlapping(
+                        self.buf[offset..].as_ptr(),
+                        node.as_mut_ptr() as *mut u8,
+                        NODE_STRUCT_SIZE,
+                    );
+                    node.assume_init()
+                }
+            })
+            .collect();
+
+        let children_count = self.header.children_count as usize;
+        let children_start = self.header.children_offset as usize;
+        let children: Vec<u32> = (0..children_count)
+            .map(|i| {
+                let offset = children_start + i * 4;
+                u32::from_ne_bytes(self.buf[offset..offset + 4].try_into().unwrap())
+            })
+            .collect();
+
+        let td_start = self.header.type_data_offset as usize;
+        let td_len = self.header.type_data_len as usize;
+        let type_data = self.buf[td_start..td_start + td_len].to_vec();
+
+        let source = self.get_source().to_string();
+
+        MdastArena {
+            nodes,
+            children,
+            type_data,
+            source,
+        }
+    }
 }
 
 #[cfg(test)]

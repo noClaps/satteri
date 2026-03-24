@@ -2473,11 +2473,11 @@ fn item_to_event<'a>(item: Item, text: &'a str, allocs: &mut Allocations<'a>) ->
         ItemBody::IndentCodeBlock => Tag::CodeBlock(CodeBlockKind::Indented),
         ItemBody::Container(_, kind, cow_ix) => Tag::ContainerBlock(kind, allocs.take_cow(cow_ix)),
         ItemBody::BlockQuote(kind) => Tag::BlockQuote(kind),
-        ItemBody::List(_, c, listitem_start) => {
+        ItemBody::List(is_tight, c, listitem_start) => {
             if c == b'.' || c == b')' {
-                Tag::List(Some(listitem_start))
+                Tag::List(Some(listitem_start), is_tight)
             } else {
-                Tag::List(None)
+                Tag::List(None, is_tight)
             }
         }
         ItemBody::ListItem(_) => Tag::Item,

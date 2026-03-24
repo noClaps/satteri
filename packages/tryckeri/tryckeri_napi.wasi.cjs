@@ -108,6 +108,7 @@ const { instance: __napiInstance, module: __wasiModule, napiModule: __napiModule
   },
 })
 module.exports = __napiModule.exports
+module.exports.applyMutations = __napiModule.exports.applyMutations
 module.exports.compileMdx = __napiModule.exports.compileMdx
 module.exports.compileMdxFromBuffer = __napiModule.exports.compileMdxFromBuffer
 module.exports.getBufferFormat = __napiModule.exports.getBufferFormat

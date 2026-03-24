@@ -37,15 +37,18 @@ test("structuralMutationCount is 1 for a plugin that returns a replacement node"
   expect(result.structuralMutationCount).toBe(1);
 });
 
-test("mutationCount equals total mutations across all plugins", () => {
+test("mutationCount tracks plugins that produce mutations", () => {
   const buffer = buildHelloWorldBuffer();
 
+  // plugin1 replaces heading with paragraph — mutation applied
   const plugin1 = {
     heading(node: MdastNode) {
       return { type: "paragraph", children: node.children } as unknown as MdastNode;
     },
   };
 
+  // plugin2 tries to remove headings, but plugin1 already replaced it with a
+  // paragraph, so plugin2's heading visitor doesn't fire.
   const plugin2 = {
     heading(node: MdastNode, ctx: { removeNode(n: MdastNode): void }) {
       ctx.removeNode(node);
@@ -54,8 +57,9 @@ test("mutationCount equals total mutations across all plugins", () => {
 
   const result = runPluginsOnBuffer(buffer, [makePlugin(plugin1, "p1"), makePlugin(plugin2, "p2")]);
 
-  expect(result.mutationCount).toBe(2);
-  expect(result.structuralMutationCount).toBe(2);
+  // Only plugin1 produces a mutation since the heading is gone by the time plugin2 runs
+  expect(result.mutationCount).toBe(1);
+  expect(result.structuralMutationCount).toBe(1);
 });
 
 test("same buffer reference returned when no structural mutations", () => {

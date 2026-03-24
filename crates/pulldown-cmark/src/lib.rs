@@ -225,9 +225,10 @@ pub enum Tag<'a> {
     /// ```
     HtmlBlock,
 
-    /// A list. If the list is ordered the field indicates the number of the first item.
+    /// A list. If the list is ordered the first field indicates the number of the first item.
+    /// The second field is `true` when the list is tight (no blank lines between items).
     /// Contains only list items.
-    List(Option<u64>), // TODO: add delim and tight for ast (not needed for html)
+    List(Option<u64>, bool),
     /// A list item.
     Item,
     /// A footnote definition. The value contained is the footnote's label by which it can
@@ -336,7 +337,7 @@ impl<'a> Tag<'a> {
             Tag::CodeBlock(_) => TagEnd::CodeBlock,
             Tag::ContainerBlock(kind, _) => TagEnd::ContainerBlock(*kind),
             Tag::HtmlBlock => TagEnd::HtmlBlock,
-            Tag::List(number) => TagEnd::List(number.is_some()),
+            Tag::List(number, _) => TagEnd::List(number.is_some()),
             Tag::Item => TagEnd::Item,
             Tag::FootnoteDefinition(_) => TagEnd::FootnoteDefinition,
             Tag::Table(_) => TagEnd::Table,
@@ -380,7 +381,7 @@ impl<'a> Tag<'a> {
             Tag::CodeBlock(kb) => Tag::CodeBlock(kb.into_static()),
             Tag::ContainerBlock(k, s) => Tag::ContainerBlock(k, s.into_static()),
             Tag::HtmlBlock => Tag::HtmlBlock,
-            Tag::List(v) => Tag::List(v),
+            Tag::List(v, t) => Tag::List(v, t),
             Tag::Item => Tag::Item,
             Tag::FootnoteDefinition(a) => Tag::FootnoteDefinition(a.into_static()),
             Tag::Table(v) => Tag::Table(v),

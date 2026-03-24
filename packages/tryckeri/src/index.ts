@@ -2,6 +2,7 @@ export { MdastReader, NodeType, NodeTypeName } from "./mdast-reader.js";
 export { DataMap } from "./data-map.js";
 export { materializeNode, materializeTree, TYPE_NAMES } from "./materializer.js";
 export { visitMdast, MutationType } from "./visitor.js";
+export { CommandBuffer, classifyReturn, resolveFieldId } from "./command-buffer.js";
 export { definePlugin } from "./plugin.js";
 export { createProcessor, ProcessorContext } from "./processor.js";
 export {
@@ -15,6 +16,7 @@ export {
   compileMdxFromBuffer,
   parseToHtml,
   parseMdxToHtml,
+  applyMutations,
 } from "../index.js";
 
 // HAST support

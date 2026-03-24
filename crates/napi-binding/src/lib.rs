@@ -89,6 +89,43 @@ pub fn hast_buffer_to_html_str(buf: Buffer) -> Result<String> {
     tryckeri_hast::hast_buffer_to_html(&buf).map_err(|e| napi::Error::from_reason(format!("{e:?}")))
 }
 
+// ---------------------------------------------------------------------------
+// Mutation application
+// ---------------------------------------------------------------------------
+
+/// Apply a binary command buffer of mutations to an MDAST arena buffer.
+///
+/// The command buffer is produced by the JS `CommandBuffer` class (see
+/// `command-buffer.ts`). It encodes remove, setProperty, insert, replace,
+/// and other structural mutations in a compact binary format.
+///
+/// Returns a new MDAST arena buffer with all mutations applied.
+#[napi]
+pub fn apply_mutations(
+    arena_buf: Buffer,
+    command_buf: Buffer,
+) -> Result<Uint8Array> {
+    // Deserialize the arena from its binary buffer
+    let view = mdast_arena::MdastArena::from_raw_buffer(&arena_buf)
+        .map_err(|e| napi::Error::from_reason(format!("invalid arena buffer: {e:?}")))?;
+    let arena = view.to_arena();
+
+    // Provide the real parser as the markdown parsing callback
+    let parse_markdown = |source: &str| -> mdast_arena::MdastArena {
+        let (parsed, _errors) = parser::parse(source, &parser::ParseOptions::mdx());
+        parsed
+    };
+
+    let new_arena = mdast_arena::apply_commands(&arena, &command_buf, &parse_markdown)
+        .map_err(|e| napi::Error::from_reason(format!("command error: {e}")))?;
+
+    Ok(Uint8Array::new(new_arena.to_raw_buffer()))
+}
+
+// ---------------------------------------------------------------------------
+// Buffer metadata
+// ---------------------------------------------------------------------------
+
 /// Return metadata about the ArenaNode struct size and buffer format version.
 #[napi(object)]
 pub struct BufferFormat {

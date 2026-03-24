@@ -196,29 +196,44 @@ fn copy_node(
 /// Emit all nodes from a sub-arena into the builder.
 /// Starts from the sub-arena root (node 0) and recursively copies structure.
 ///
-/// Note: type_data bytes are copied verbatim. For structural nodes (Heading,
-/// Paragraph, etc. built with NodeBuilder without inline text content), this
-/// works correctly. For nodes with StringRef type data referencing the sub-arena's
-/// own source, those StringRefs will reference the original arena's source instead,
-/// which is a known Phase 6 limitation documented here.
+/// The sub-arena's source is appended to the builder's source, and all
+/// StringRef offsets in type_data are remapped so they point into the
+/// merged source buffer.
 fn emit_subtree(sub_arena: &MdastArena, builder: &mut MdastBuilder) {
     if sub_arena.is_empty() {
         return;
     }
-    emit_subtree_node(0, sub_arena, builder);
+    // Append the sub-arena's source to the builder and record the base offset
+    // so we can remap StringRefs in type_data.
+    let sub_source = sub_arena.source();
+    let source_base = if sub_source.is_empty() {
+        0u32
+    } else {
+        let sref = builder.alloc_string(sub_source);
+        sref.offset
+    };
+    emit_subtree_node(0, sub_arena, builder, source_base);
 }
 
 /// Recursively emit nodes from sub_arena starting at `node_id`.
-fn emit_subtree_node(node_id: u32, sub_arena: &MdastArena, builder: &mut MdastBuilder) {
+/// `source_base` is the offset added to all StringRef offsets to remap
+/// them into the merged source buffer.
+fn emit_subtree_node(
+    node_id: u32,
+    sub_arena: &MdastArena,
+    builder: &mut MdastBuilder,
+    source_base: u32,
+) {
     let node = sub_arena.get_node(node_id);
     let node_type =
         NodeType::from_u8(node.node_type).expect("unknown node type in sub-arena — corrupt data");
 
     builder.open_node(node_type);
 
+    // Remap source offsets so they point into the merged source buffer
     builder.set_position_current(
-        node.start_offset,
-        node.end_offset,
+        node.start_offset + source_base,
+        node.end_offset + source_base,
         node.start_line,
         node.start_column,
         node.end_line,
@@ -227,15 +242,66 @@ fn emit_subtree_node(node_id: u32, sub_arena: &MdastArena, builder: &mut MdastBu
 
     let type_data = sub_arena.get_type_data(node_id);
     if !type_data.is_empty() {
-        builder.set_data_current(type_data);
+        if source_base != 0 {
+            // Remap StringRef offsets in type_data by adding source_base
+            let mut remapped = type_data.to_vec();
+            remap_string_refs(&mut remapped, node.node_type, source_base);
+            builder.set_data_current(&remapped);
+        } else {
+            builder.set_data_current(type_data);
+        }
     }
 
     let child_ids: Vec<u32> = sub_arena.get_children(node_id).to_vec();
     for child_id in child_ids {
-        emit_subtree_node(child_id, sub_arena, builder);
+        emit_subtree_node(child_id, sub_arena, builder, source_base);
     }
 
     builder.close_node();
+}
+
+/// Add `base` to all StringRef offset fields in type_data.
+/// StringRefs are `(offset: u32 LE, len: u32 LE)` pairs at known positions
+/// depending on the node type.
+fn remap_string_refs(data: &mut [u8], node_type: u8, base: u32) {
+    // Positions of StringRef offset fields (byte offset within type_data)
+    // Each StringRef is 8 bytes: u32 offset + u32 len. We only adjust the offset.
+    let ref_offsets: &[usize] = match node_type {
+        // Text, InlineCode, Html, Yaml, Toml, InlineMath: single StringRef at 0
+        10 | 13 | 7 | 25 | 26 | 28 => &[0],
+        // Code: lang(0), meta(8), value(16)
+        8 => &[0, 8, 16],
+        // Math: meta(0), value(8)
+        27 => &[0, 8],
+        // Link: url(0), title(8)
+        15 => &[0, 8],
+        // Image: url(0), alt(8), title(16)
+        16 => &[0, 8, 16],
+        // Definition: url(0), title(8), identifier(16), label(24)
+        9 => &[0, 8, 16, 24],
+        // LinkReference, ImageReference, FootnoteReference: identifier(0), label(8)
+        17 | 18 | 20 => &[0, 8],
+        // FootnoteDefinition: identifier(0), label(8)
+        19 => &[0, 8],
+        // MdxJsxFlowElement, MdxJsxTextElement: name(0)
+        100 | 101 => &[0],
+        // MdxFlowExpression, MdxTextExpression, MdxjsEsm: value(0)
+        102 | 103 | 104 => &[0],
+        // Heading(depth u8), List, ListItem, Table, etc. — no StringRefs
+        _ => &[],
+    };
+
+    for &off in ref_offsets {
+        if off + 4 <= data.len() {
+            let current = u32::from_le_bytes([data[off], data[off + 1], data[off + 2], data[off + 3]]);
+            let len = u32::from_le_bytes([data[off + 4], data[off + 5], data[off + 6], data[off + 7]]);
+            // Only remap non-empty StringRefs (len > 0)
+            if len > 0 {
+                let new_offset = current + base;
+                data[off..off + 4].copy_from_slice(&new_offset.to_le_bytes());
+            }
+        }
+    }
 }
 
 /// Emit a Wrap: open the wrapper node (first node from parent_tree's root),

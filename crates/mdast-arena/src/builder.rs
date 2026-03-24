@@ -203,7 +203,7 @@ mod tests {
         let leaf = builder.add_leaf(NodeType::Break);
         builder.close_node();
         let arena = builder.finish();
-        assert_eq!(arena.get_children(leaf), &[]);
+        assert_eq!(arena.get_children(leaf), &[] as &[u32]);
     }
 
     #[test]

@@ -604,12 +604,12 @@ fn tag_to_node_type(
                 Some(encode_code_data(lang, meta, StringRef::empty(), b'`')),
             )
         }
-        Tag::List(first_item) => {
+        Tag::List(first_item, is_tight) => {
             let ordered = first_item.is_some();
             let start_num = first_item.unwrap_or(0) as u32;
             (
                 NodeType::List,
-                Some(encode_list_data(ordered, start_num, false)),
+                Some(encode_list_data(ordered, start_num, !is_tight)),
             )
         }
         Tag::Item => (

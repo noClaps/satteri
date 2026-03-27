@@ -2,7 +2,7 @@ import { ProcessorContext, runPluginsOnBuffer } from "./pipeline.js";
 import { MdastReader } from "./mdast-reader.js";
 import { materializeTree } from "./materializer.js";
 import { DataMap } from "./data-map.js";
-import type { PluginDefinition } from "./plugin.js";
+import type { MdastPluginDefinition } from "./plugin.js";
 import type { MdastNode } from "./types.js";
 import type { Diagnostic } from "./visitor.js";
 
@@ -25,18 +25,18 @@ export interface ProcessTreeResult {
 
 export function createProcessor({
   plugins = [],
-}: { plugins?: PluginDefinition[] } = {}): Processor {
+}: { plugins?: MdastPluginDefinition[] } = {}): Processor {
   return new Processor(plugins);
 }
 
 class Processor {
-  readonly #pluginDefs: PluginDefinition[];
+  readonly #pluginDefs: MdastPluginDefinition[];
   readonly #processorCtx: ProcessorContext;
   #initializedPlugins:
-    | { instance: ReturnType<PluginDefinition["createOnce"]>; name: string }[]
+    | { instance: ReturnType<MdastPluginDefinition["createOnce"]>; name: string }[]
     | null = null;
 
-  constructor(pluginDefs: PluginDefinition[]) {
+  constructor(pluginDefs: MdastPluginDefinition[]) {
     for (const def of pluginDefs) {
       if (!def.name || typeof def.createOnce !== "function") {
         throw new Error(`Invalid plugin: ${JSON.stringify(def.name)}`);
@@ -46,7 +46,7 @@ class Processor {
     this.#processorCtx = new ProcessorContext();
   }
 
-  #getPluginInstances(): { instance: ReturnType<PluginDefinition["createOnce"]>; name: string }[] {
+  #getPluginInstances(): { instance: ReturnType<MdastPluginDefinition["createOnce"]>; name: string }[] {
     if (this.#initializedPlugins === null) {
       this.#initializedPlugins = this.#pluginDefs.map((def) => ({
         instance: def.createOnce(this.#processorCtx),

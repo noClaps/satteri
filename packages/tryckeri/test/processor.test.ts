@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildHelloWorldBuffer } from "./fixtures.js";
 import { createProcessor } from "../src/processor.js";
-import { definePlugin } from "../src/plugin.js";
+import { defineMdastPlugin } from "../src/plugin.js";
 
 describe("createProcessor", () => {
   it("createProcessor([]) works, processBuffer returns same buffer", () => {
@@ -16,7 +16,7 @@ describe("createProcessor", () => {
   it("multiple plugins run in order", () => {
     const buf = buildHelloWorldBuffer();
     let headingCallCount = 0;
-    const counterPlugin = definePlugin({
+    const counterPlugin = defineMdastPlugin({
       name: "counter",
       createOnce() {
         return {
@@ -34,7 +34,7 @@ describe("createProcessor", () => {
   it("createOnce is called once per processor, not once per processBuffer call", () => {
     const buf = buildHelloWorldBuffer();
     let createOnceCallCount = 0;
-    const countingPlugin = definePlugin({
+    const countingPlugin = defineMdastPlugin({
       name: "counter",
       createOnce(_ctx) {
         createOnceCallCount++;

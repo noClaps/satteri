@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { definePlugin } from "../src/plugin.js";
+import { defineMdastPlugin } from "../src/plugin.js";
 
-describe("definePlugin", () => {
+describe("defineMdastPlugin", () => {
   it("returns the definition unchanged (identity)", () => {
     const def = {
       name: "my-plugin",
@@ -9,13 +9,13 @@ describe("definePlugin", () => {
         return {};
       },
     };
-    const result = definePlugin(def);
+    const result = defineMdastPlugin(def);
     expect(result).toBe(def);
   });
 
   it("throws if name is missing", () => {
     expect(() =>
-      definePlugin({
+      defineMdastPlugin({
         name: "",
         createOnce() {
           return {};
@@ -26,28 +26,28 @@ describe("definePlugin", () => {
 
   it("throws if name is absent entirely", () => {
     expect(() =>
-      definePlugin({
+      defineMdastPlugin({
         createOnce() {
           return {};
         },
-      } as unknown as Parameters<typeof definePlugin>[0]),
+      } as unknown as Parameters<typeof defineMdastPlugin>[0]),
     ).toThrow(/name/);
   });
 
   it("throws if createOnce is missing", () => {
     expect(() =>
-      definePlugin({ name: "x" } as unknown as Parameters<typeof definePlugin>[0]),
+      defineMdastPlugin({ name: "x" } as unknown as Parameters<typeof defineMdastPlugin>[0]),
     ).toThrow(/createOnce/);
   });
 
   it("throws if createOnce is not a function", () => {
     expect(() =>
-      definePlugin({ name: "x", createOnce: 42 } as unknown as Parameters<typeof definePlugin>[0]),
+      defineMdastPlugin({ name: "x", createOnce: 42 } as unknown as Parameters<typeof defineMdastPlugin>[0]),
     ).toThrow(/createOnce/);
   });
 
   it("works with a minimal valid definition", () => {
-    const def = definePlugin({
+    const def = defineMdastPlugin({
       name: "minimal",
       createOnce() {
         return {};

@@ -3,7 +3,8 @@ export { DataMap } from "./data-map.js";
 export { materializeNode, materializeTree, TYPE_NAMES } from "./materializer.js";
 export { visitMdast, MutationType } from "./visitor.js";
 export { CommandBuffer, classifyReturn, resolveFieldId } from "./command-buffer.js";
-export { definePlugin } from "./plugin.js";
+export { defineMdastPlugin, defineHastPlugin } from "./plugin.js";
+export type { MdastPluginDefinition, HastPluginDefinition } from "./plugin.js";
 export { createProcessor, ProcessorContext } from "./processor.js";
 export {
   parseToBuffer,

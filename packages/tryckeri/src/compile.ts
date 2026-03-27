@@ -1,15 +1,12 @@
 /**
  * Top-level compile functions — the primary public API.
- *
- * These are the "just give me output" functions that wire together parsing,
- * MDAST plugins, HAST plugins, and serialization into a single call.
  */
 
 import { DataMap } from "./data-map.js";
 import { HastReader } from "./hast-reader.js";
-import { visitHast, type HastVisitorInstance } from "./hast-visitor.js";
+import { visitHast } from "./hast-visitor.js";
 import { runPluginsOnBuffer, ProcessorContext } from "./pipeline.js";
-import type { PluginDefinition } from "./plugin.js";
+import type { MdastPluginDefinition, HastPluginDefinition } from "./plugin.js";
 import {
   parseToBuffer,
   parseMdxToBuffer,
@@ -20,12 +17,12 @@ import {
 } from "../index.js";
 
 // ---------------------------------------------------------------------------
-// MDAST plugin initialization helper
+// Plugin initialization
 // ---------------------------------------------------------------------------
 
-function initMdastPlugins(
-  plugins: PluginDefinition[],
-): { instance: ReturnType<PluginDefinition["createOnce"]>; name: string }[] {
+function initPlugins<T>(
+  plugins: { name: string; createOnce(ctx: ProcessorContext): T }[],
+): { instance: T; name: string }[] {
   const ctx = new ProcessorContext();
   return plugins.map((def) => ({
     instance: def.createOnce(ctx),
@@ -34,27 +31,22 @@ function initMdastPlugins(
 }
 
 // ---------------------------------------------------------------------------
-// HAST plugin runner (unified: uses CommandBuffer + Rust applyMutations)
+// HAST plugin runner
 // ---------------------------------------------------------------------------
 
-/**
- * Run HAST plugins on a HAST binary buffer.
- *
- * Uses the same CommandBuffer + Rust `applyMutations` path as MDAST plugins.
- * Returns the (possibly mutated) HAST binary buffer.
- */
 function runHastPlugins(
   hastBuf: Uint8Array,
-  plugins: HastVisitorInstance[],
+  plugins: HastPluginDefinition[],
 ): Uint8Array {
   if (plugins.length === 0) return hastBuf;
 
+  const instances = initPlugins(plugins);
   let currentBuffer: Uint8Array = hastBuf;
 
-  for (const plugin of plugins) {
+  for (const { instance } of instances) {
     const reader = new HastReader(currentBuffer);
     const dataMap = new DataMap();
-    const result = visitHast(reader, plugin, dataMap);
+    const result = visitHast(reader, instance, dataMap);
 
     if (result.hasMutations) {
       currentBuffer = applyMutations(currentBuffer, result.commandBuffer);
@@ -69,29 +61,20 @@ function runHastPlugins(
 // ---------------------------------------------------------------------------
 
 export interface CompileOptions {
-  /** MDAST plugins (tree transformations on the Markdown AST). */
-  mdastPlugins?: PluginDefinition[];
-  /** HAST plugins (tree transformations on the HTML AST). */
-  hastPlugins?: HastVisitorInstance[];
+  mdastPlugins?: MdastPluginDefinition[];
+  hastPlugins?: HastPluginDefinition[];
 }
 
-/**
- * Parse Markdown source and compile to an HTML string.
- *
- * Optionally runs MDAST and/or HAST plugins in sequence.
- */
 export function compileMarkdownToHtml(
   source: string,
   options: CompileOptions = {},
 ): string {
   const { mdastPlugins = [], hastPlugins = [] } = options;
 
-  // 1. Parse to MDAST binary buffer
   let mdastBuf: Uint8Array = parseToBuffer(source);
 
-  // 2. Run MDAST plugins (if any)
   if (mdastPlugins.length > 0) {
-    const instances = initMdastPlugins(mdastPlugins);
+    const instances = initPlugins(mdastPlugins);
     const result = runPluginsOnBuffer(mdastBuf, instances);
     mdastBuf =
       result.buffer instanceof Uint8Array
@@ -99,33 +82,22 @@ export function compileMarkdownToHtml(
         : new Uint8Array(result.buffer);
   }
 
-  // 3. Convert MDAST → HAST binary buffer
   let hastBuf = mdastBufferToHastBuffer(mdastBuf);
-
-  // 4. Run HAST plugins (if any)
   hastBuf = runHastPlugins(hastBuf, hastPlugins);
 
-  // 5. Serialize to HTML
   return hastBufferToHtmlStr(hastBuf);
 }
 
-/**
- * Parse MDX source and compile to JavaScript.
- *
- * Optionally runs MDAST and/or HAST plugins before compilation.
- */
 export function compileMdxToJs(
   source: string,
   options: CompileOptions = {},
 ): string {
   const { mdastPlugins = [], hastPlugins = [] } = options;
 
-  // 1. Parse to MDAST binary buffer
   let mdastBuf: Uint8Array = parseMdxToBuffer(source);
 
-  // 2. Run MDAST plugins (if any)
   if (mdastPlugins.length > 0) {
-    const instances = initMdastPlugins(mdastPlugins);
+    const instances = initPlugins(mdastPlugins);
     const result = runPluginsOnBuffer(mdastBuf, instances);
     mdastBuf =
       result.buffer instanceof Uint8Array
@@ -133,12 +105,8 @@ export function compileMdxToJs(
         : new Uint8Array(result.buffer);
   }
 
-  // 3. Convert MDAST → HAST binary buffer
   let hastBuf = mdastBufferToHastBuffer(mdastBuf);
-
-  // 4. Run HAST plugins (if any)
   hastBuf = runHastPlugins(hastBuf, hastPlugins);
 
-  // 5. Compile HAST → JavaScript
   return compileHastBufferToJs(hastBuf);
 }

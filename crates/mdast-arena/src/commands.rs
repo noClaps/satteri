@@ -388,7 +388,7 @@ fn set_string_ref(
         // MdxJsxElement: MdxJsxElementData { name: 0 }
         (100 | 101, FIELD_NAME) => 0,
         // MdxExpression/MdxjsEsm: ExpressionData { value: 0 }
-        (102 | 103 | 104, FIELD_VALUE) => 0,
+        (102..=104, FIELD_VALUE) => 0,
         _ => return Err(CommandError::UnknownField(field_id)),
     };
 

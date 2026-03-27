@@ -1,7 +1,12 @@
 import { describe, test, expect } from "vitest";
-import { compileMarkdownToHtml, compileMdxToJs, definePlugin } from "../src/index.js";
+import {
+  compileMarkdownToHtml,
+  compileMdxToJs,
+  defineMdastPlugin,
+  defineHastPlugin,
+} from "../src/index.js";
 import type { HastNode } from "../src/hast-materializer.js";
-import type { HastVisitorInstance, HastVisitorContext } from "../src/hast-visitor.js";
+import type { HastVisitorContext } from "../src/hast-visitor.js";
 import type { MdastNode } from "../src/types.js";
 
 // ---------------------------------------------------------------------------
@@ -40,11 +45,11 @@ describe("compileMarkdownToHtml", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // compileMarkdownToHtml — with MDAST plugins only
+  // with MDAST plugins only
   // ---------------------------------------------------------------------------
 
   test("MDAST plugin removes headings", () => {
-    const removeHeadings = definePlugin({
+    const removeHeadings = defineMdastPlugin({
       name: "remove-headings",
       createOnce: () => ({
         heading(node: MdastNode, ctx: { removeNode(n: MdastNode): void }) {
@@ -62,7 +67,7 @@ describe("compileMarkdownToHtml", () => {
   });
 
   test("MDAST plugin replaces text with raw markdown", () => {
-    const uppercaseHeadings = definePlugin({
+    const uppercaseHeadings = defineMdastPlugin({
       name: "uppercase-headings",
       createOnce: () => ({
         heading(_node: MdastNode) {
@@ -79,15 +84,18 @@ describe("compileMarkdownToHtml", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // compileMarkdownToHtml — with HAST plugins only
+  // with HAST plugins only
   // ---------------------------------------------------------------------------
 
   test("HAST plugin adds class to all elements", () => {
-    const addClasses: HastVisitorInstance = {
-      element(node: HastNode, ctx: HastVisitorContext) {
-        ctx.setProperty(node, "class", "styled");
-      },
-    };
+    const addClasses = defineHastPlugin({
+      name: "add-classes",
+      createOnce: () => ({
+        element(node: HastNode, ctx: HastVisitorContext) {
+          ctx.setProperty(node, "class", "styled");
+        },
+      }),
+    });
 
     const html = compileMarkdownToHtml("# Hello\n\nWorld", {
       hastPlugins: [addClasses],
@@ -97,13 +105,16 @@ describe("compileMarkdownToHtml", () => {
   });
 
   test("HAST plugin removes elements", () => {
-    const removeHeadings: HastVisitorInstance = {
-      element(node: HastNode, ctx: HastVisitorContext) {
-        if (node.tagName === "h1") {
-          ctx.removeNode(node);
-        }
-      },
-    };
+    const removeHeadings = defineHastPlugin({
+      name: "remove-h1",
+      createOnce: () => ({
+        element(node: HastNode, ctx: HastVisitorContext) {
+          if (node.tagName === "h1") {
+            ctx.removeNode(node);
+          }
+        },
+      }),
+    });
 
     const html = compileMarkdownToHtml("# Gone\n\nStays", {
       hastPlugins: [removeHeadings],
@@ -114,20 +125,23 @@ describe("compileMarkdownToHtml", () => {
   });
 
   test("HAST plugin replaces element via return value", () => {
-    const replaceH1: HastVisitorInstance = {
-      element(node: HastNode) {
-        if (node.tagName === "h1") {
-          return {
-            type: "element",
-            _nodeId: -1,
-            tagName: "h2",
-            properties: { class: "demoted" },
-            children: node.children,
-            data: null,
-          };
-        }
-      },
-    };
+    const replaceH1 = defineHastPlugin({
+      name: "demote-h1",
+      createOnce: () => ({
+        element(node: HastNode) {
+          if (node.tagName === "h1") {
+            return {
+              type: "element",
+              _nodeId: -1,
+              tagName: "h2",
+              properties: { class: "demoted" },
+              children: node.children ?? [],
+              data: null,
+            };
+          }
+        },
+      }),
+    });
 
     const html = compileMarkdownToHtml("# Title", {
       hastPlugins: [replaceH1],
@@ -139,13 +153,16 @@ describe("compileMarkdownToHtml", () => {
   });
 
   test("HAST plugin sets id on heading", () => {
-    const addIds: HastVisitorInstance = {
-      element(node: HastNode, ctx: HastVisitorContext) {
-        if (node.tagName === "h1") {
-          ctx.setProperty(node, "id", "main-title");
-        }
-      },
-    };
+    const addIds = defineHastPlugin({
+      name: "add-ids",
+      createOnce: () => ({
+        element(node: HastNode, ctx: HastVisitorContext) {
+          if (node.tagName === "h1") {
+            ctx.setProperty(node, "id", "main-title");
+          }
+        },
+      }),
+    });
 
     const html = compileMarkdownToHtml("# Hello", {
       hastPlugins: [addIds],
@@ -154,27 +171,30 @@ describe("compileMarkdownToHtml", () => {
   });
 
   test("HAST plugin wraps text in span via transformRoot", () => {
-    const wrapTexts: HastVisitorInstance = {
-      transformRoot(root: HastNode) {
-        function walk(node: HastNode): HastNode {
-          if (node.type === "text") {
-            return {
-              type: "element",
-              _nodeId: -1,
-              tagName: "span",
-              properties: { class: "text-wrap" },
-              children: [node],
-              data: null,
-            };
+    const wrapTexts = defineHastPlugin({
+      name: "wrap-texts",
+      createOnce: () => ({
+        transformRoot(root: HastNode) {
+          function walk(node: HastNode): HastNode {
+            if (node.type === "text") {
+              return {
+                type: "element",
+                _nodeId: -1,
+                tagName: "span",
+                properties: { class: "text-wrap" },
+                children: [node],
+                data: null,
+              };
+            }
+            if (node.children) {
+              return { ...node, children: node.children.map(walk) };
+            }
+            return node;
           }
-          if (node.children) {
-            return { ...node, children: node.children.map(walk) };
-          }
-          return node;
-        }
-        return walk(root);
-      },
-    };
+          return walk(root);
+        },
+      }),
+    });
 
     const html = compileMarkdownToHtml("Hello", {
       hastPlugins: [wrapTexts],
@@ -183,11 +203,14 @@ describe("compileMarkdownToHtml", () => {
   });
 
   test("no mutations — fast Rust path still works", () => {
-    const noopPlugin: HastVisitorInstance = {
-      element() {
-        // inspect but don't mutate
-      },
-    };
+    const noopPlugin = defineHastPlugin({
+      name: "noop",
+      createOnce: () => ({
+        element() {
+          // inspect but don't mutate
+        },
+      }),
+    });
 
     const html = compileMarkdownToHtml("# Test\n\nParagraph", {
       hastPlugins: [noopPlugin],
@@ -198,11 +221,11 @@ describe("compileMarkdownToHtml", () => {
   });
 
   // ---------------------------------------------------------------------------
-  // compileMarkdownToHtml — with both MDAST and HAST plugins
+  // with both MDAST and HAST plugins
   // ---------------------------------------------------------------------------
 
   test("MDAST plugin removes headings, HAST plugin adds class", () => {
-    const removeHeadings = definePlugin({
+    const removeHeadings = defineMdastPlugin({
       name: "remove-headings",
       createOnce: () => ({
         heading(node: MdastNode, ctx: { removeNode(n: MdastNode): void }) {
@@ -211,11 +234,14 @@ describe("compileMarkdownToHtml", () => {
       }),
     });
 
-    const addClasses: HastVisitorInstance = {
-      element(node: HastNode, ctx: HastVisitorContext) {
-        ctx.setProperty(node, "class", "styled");
-      },
-    };
+    const addClasses = defineHastPlugin({
+      name: "add-classes",
+      createOnce: () => ({
+        element(node: HastNode, ctx: HastVisitorContext) {
+          ctx.setProperty(node, "class", "styled");
+        },
+      }),
+    });
 
     const html = compileMarkdownToHtml("# Gone\n\nKeep", {
       mdastPlugins: [removeHeadings],
@@ -227,19 +253,25 @@ describe("compileMarkdownToHtml", () => {
   });
 
   test("multiple HAST plugins compose", () => {
-    const addIds: HastVisitorInstance = {
-      element(node: HastNode, ctx: HastVisitorContext) {
-        if (node.tagName === "h1") {
-          ctx.setProperty(node, "id", "title");
-        }
-      },
-    };
+    const addIds = defineHastPlugin({
+      name: "add-ids",
+      createOnce: () => ({
+        element(node: HastNode, ctx: HastVisitorContext) {
+          if (node.tagName === "h1") {
+            ctx.setProperty(node, "id", "title");
+          }
+        },
+      }),
+    });
 
-    const addClasses: HastVisitorInstance = {
-      element(node: HastNode, ctx: HastVisitorContext) {
-        ctx.setProperty(node, "class", "styled");
-      },
-    };
+    const addClasses = defineHastPlugin({
+      name: "add-classes",
+      createOnce: () => ({
+        element(node: HastNode, ctx: HastVisitorContext) {
+          ctx.setProperty(node, "class", "styled");
+        },
+      }),
+    });
 
     const html = compileMarkdownToHtml("# Hello", {
       hastPlugins: [addIds, addClasses],
@@ -266,7 +298,7 @@ describe("compileMdxToJs", () => {
   });
 
   test("MDAST plugin affects MDX output", () => {
-    const removeHeadings = definePlugin({
+    const removeHeadings = defineMdastPlugin({
       name: "remove-headings",
       createOnce: () => ({
         heading(node: MdastNode, ctx: { removeNode(n: MdastNode): void }) {

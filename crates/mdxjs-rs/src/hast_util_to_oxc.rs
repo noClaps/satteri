@@ -319,10 +319,11 @@ fn transform_mdx_jsx_element<'a>(
     };
 
     let space = context.space;
-    if let Some(n) = name {
-        if space == Space::Html && n == "svg" {
-            context.space = Space::Svg;
-        }
+    if let Some(n) = name
+        && space == Space::Html
+        && n == "svg"
+    {
+        context.space = Space::Svg;
     }
 
     let children = all(context, node_id, explicit_jsxs)?;

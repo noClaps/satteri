@@ -112,7 +112,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                     // indentation.  If no new container is found we restore and
                     // break so that the indentation is preserved for content
                     // that belongs to an existing list item.
-                    let mdx_save = line_start.clone();
+                    let _mdx_save = line_start.clone();
                     line_start.scan_all_space();
                     let mdx_ix = start_ix + line_start.bytes_scanned();
                     // Quick check: is there a list marker or blockquote here?

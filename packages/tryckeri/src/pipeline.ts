@@ -2,7 +2,7 @@ import { visitMdast } from "./visitor.js";
 import { DataMap } from "./data-map.js";
 import { MdastReader } from "./mdast-reader.js";
 import { materializeNode } from "./materializer.js";
-import type { PluginDefinition } from "./plugin.js";
+import type { MdastPluginDefinition } from "./plugin.js";
 import type { MdastNode } from "./types.js";
 import type { Diagnostic } from "./visitor.js";
 
@@ -41,7 +41,7 @@ export interface RunResult {
  */
 export function runPluginsOnBuffer(
   buffer: ArrayBuffer | Uint8Array,
-  pluginInstances: { instance: ReturnType<PluginDefinition["createOnce"]>; name: string }[],
+  pluginInstances: { instance: ReturnType<MdastPluginDefinition["createOnce"]>; name: string }[],
   { filename = "<unknown>", dataMap }: { filename?: string; dataMap?: DataMap } = {},
 ): RunResult {
   const dm = dataMap ?? new DataMap();
@@ -90,9 +90,9 @@ export function runPluginsOnBuffer(
 }
 
 function wrapInstance(
-  instance: ReturnType<PluginDefinition["createOnce"]>,
+  instance: ReturnType<MdastPluginDefinition["createOnce"]>,
   fileContext: FileContext,
-): ReturnType<PluginDefinition["createOnce"]> {
+): ReturnType<MdastPluginDefinition["createOnce"]> {
   const wrapped: Record<string, unknown> = {};
 
   for (const [key, val] of Object.entries(instance as Record<string, unknown>)) {
@@ -121,5 +121,5 @@ function wrapInstance(
       );
   }
 
-  return wrapped as ReturnType<PluginDefinition["createOnce"]>;
+  return wrapped as ReturnType<MdastPluginDefinition["createOnce"]>;
 }

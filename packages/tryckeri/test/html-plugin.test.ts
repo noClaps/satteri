@@ -7,16 +7,16 @@ import {
   parseToHtml,
   applyMutations,
 } from "../index.js";
-import { MdastReader } from "../src/mdast-reader.js";
-import { HastReader } from "../src/hast-reader.js";
+import { MdastReader } from "../src/mdast/mdast-reader.js";
+import { HastReader } from "../src/hast/hast-reader.js";
 import { DataMap } from "../src/data-map.js";
-import { visitMdast } from "../src/visitor.js";
-import { visitHast } from "../src/hast-visitor.js";
-import { materializeHastTree } from "../src/hast-materializer.js";
+import { visitMdast } from "../src/mdast/mdast-visitor.js";
+import { visitHast } from "../src/hast/hast-visitor.js";
+import { materializeHastTree } from "../src/hast/hast-materializer.js";
 import { runPluginsOnBuffer } from "../src/pipeline.js";
 import type { MdastNode } from "../src/types.js";
-import type { HastNode } from "../src/hast-materializer.js";
-import type { HastVisitorContext } from "../src/hast-visitor.js";
+import type { HastNode } from "../src/hast/hast-materializer.js";
+import type { HastVisitorContext } from "../src/hast/hast-visitor.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

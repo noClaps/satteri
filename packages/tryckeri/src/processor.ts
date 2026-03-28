@@ -1,17 +1,17 @@
 import { ProcessorContext, runPluginsOnBuffer } from "./pipeline.js";
-import { MdastReader } from "./mdast-reader.js";
-import { materializeTree } from "./materializer.js";
+import { MdastReader } from "./mdast/mdast-reader.js";
+import { materializeTree } from "./mdast/mdast-materializer.js";
 import { DataMap } from "./data-map.js";
 import type { MdastPluginDefinition } from "./plugin.js";
 import type { MdastNode } from "./types.js";
-import type { Diagnostic } from "./visitor.js";
+import type { MdastDiagnostic } from "./mdast/mdast-visitor.js";
 
 export { ProcessorContext };
 
 export interface ProcessBufferResult {
   buffer: ArrayBuffer | Uint8Array;
   dataMap: DataMap;
-  diagnostics: Diagnostic[];
+  diagnostics: MdastDiagnostic[];
   mutationCount: number;
   structuralMutationCount: number;
 }
@@ -19,7 +19,7 @@ export interface ProcessBufferResult {
 export interface ProcessTreeResult {
   tree: MdastNode;
   dataMap: DataMap;
-  diagnostics: Diagnostic[];
+  diagnostics: MdastDiagnostic[];
   mutationCount: number;
 }
 
@@ -78,7 +78,7 @@ class Processor {
     };
   }
 
-  getDiagnostics(): Diagnostic[] {
+  getDiagnostics(): MdastDiagnostic[] {
     return this.#processorCtx.getDiagnostics();
   }
 }

@@ -21,5 +21,5 @@ tryckeri-hast = { path = "../hast" }
 mdxjs = { path = "../mdxjs-rs" }
 oxc_allocator = { workspace = true }
 rustc-hash = "2"
-pulldown-cmark = { path = "../pulldown-cmark" }
+pulldown-cmark = { path = "../pulldown-cmark", package = "tryckeri-pulldown-cmark" }
 parser = { path = "../parser" }

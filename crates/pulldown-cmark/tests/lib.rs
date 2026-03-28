@@ -1,6 +1,6 @@
 #![cfg(feature = "html")]
 
-use pulldown_cmark::{Options, Parser};
+use tryckeri_pulldown_cmark::{Options, Parser};
 
 #[rustfmt::skip]
 mod suite;
@@ -54,7 +54,7 @@ pub fn test_markdown_html(
     }
 
     let p = Parser::new_ext(input, opts);
-    pulldown_cmark::html::push_html(&mut s, p);
+    tryckeri_pulldown_cmark::html::push_html(&mut s, p);
 
     // normalizing the HTML using html5ever may hide actual errors
     // assert_eq!(html_standardize(output), html_standardize(&s));

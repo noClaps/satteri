@@ -2,7 +2,7 @@
 mod tests {
     use std::convert::TryInto;
 
-    use pulldown_cmark::CowStr;
+    use tryckeri_pulldown_cmark::CowStr;
 
     #[test]
     fn escaped() {

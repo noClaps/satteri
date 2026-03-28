@@ -755,8 +755,8 @@ name = "parser"
 version = "0.1.0"
 dependencies = [
  "mdast-arena",
- "pulldown-cmark",
  "tryckeri-hast",
+ "tryckeri-pulldown-cmark",
 ]
 
 [[package]]
@@ -834,20 +834,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "pulldown-cmark"
-version = "0.13.1"
-dependencies = [
- "bitflags",
- "memchr",
- "pulldown-cmark-escape",
- "rustc-hash",
- "serde",
- "unicase",
-]
-
-[[package]]
 name = "pulldown-cmark-escape"
 version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "007d8adb5ddab6f8e3f491ac63566a7d5002cc7ed73901f72057943fa71ae1ae"
 
 [[package]]
 name = "quote"
@@ -1040,9 +1030,9 @@ dependencies = [
  "mdxjs",
  "oxc_allocator",
  "parser",
- "pulldown-cmark",
  "rustc-hash",
  "tryckeri-hast",
+ "tryckeri-pulldown-cmark",
 ]
 
 [[package]]
@@ -1073,6 +1063,18 @@ version = "0.1.0"
 dependencies = [
  "mdast-arena",
  "rustc-hash",
+]
+
+[[package]]
+name = "tryckeri-pulldown-cmark"
+version = "0.13.1"
+dependencies = [
+ "bitflags",
+ "memchr",
+ "pulldown-cmark-escape",
+ "rustc-hash",
+ "serde",
+ "unicase",
 ]
 
 [[package]]

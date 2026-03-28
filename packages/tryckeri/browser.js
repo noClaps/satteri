@@ -1,1 +1,1 @@
-export * from 'tryckeri-wasm32-wasi'
+export * from '@bruits/tryckeri-wasm32-wasi'

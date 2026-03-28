@@ -11,23 +11,11 @@ import {
   HAST_MDX_EXPRESSION,
   HAST_MDX_ESM,
   type HastProperty,
-  type MdxJsxAttribute,
-  type MdxJsxExpressionAttribute,
 } from "./hast-reader.js";
-import type { DataMap } from "./data-map.js";
+import type { DataMap } from "../data-map.js";
+import type { HastNode } from "../types.js";
 
-export interface HastNode {
-  type: string;
-  /** Non-enumerable internal arena node ID. */
-  _nodeId: number;
-  tagName?: string;
-  properties?: Record<string, string | boolean | string[]>;
-  children?: HastNode[];
-  value?: string;
-  name?: string | null;
-  attributes?: (MdxJsxAttribute | MdxJsxExpressionAttribute)[];
-  data: Record<string, unknown> | null;
-}
+export type { HastNode };
 
 function lazyProp<T>(key: string, get: () => T): PropertyDescriptor {
   return {
@@ -85,7 +73,7 @@ export function materializeHastNode(
       typeName = "raw";
       break;
     case HAST_MDX_JSX_ELEMENT:
-      typeName = "mdxJsxElement";
+      typeName = "mdxJsxFlowElement";
       break;
     case HAST_MDX_JSX_TEXT_ELEMENT:
       typeName = "mdxJsxTextElement";

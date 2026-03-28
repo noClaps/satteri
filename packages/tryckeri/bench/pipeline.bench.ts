@@ -21,7 +21,7 @@ import {
   compileMdx,
   compileMdxFromBuffer,
 } from "../src/index.js";
-import { MdastReader } from "../src/mdast-reader.js";
+import { MdastReader } from "../src/mdast/mdast-reader.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -135,8 +135,8 @@ import {
   compileMdxToJs,
   defineHastPlugin,
 } from "../src/index.js";
-import type { HastNode } from "../src/hast-materializer.js";
-import type { HastVisitorContext } from "../src/hast-visitor.js";
+import type { HastNode } from "../src/hast/hast-materializer.js";
+import type { HastVisitorContext } from "../src/hast/hast-visitor.js";
 
 describe("async pipeline", () => {
   bench("compileMarkdownToHtml — no plugins (async overhead)", async () => {

@@ -1,10 +1,10 @@
-import type { PluginInstance } from "./visitor.js";
-import type { HastVisitorInstance } from "./hast-visitor.js";
+import type { MdastPluginInstance } from "./mdast/mdast-visitor.js";
+import type { HastVisitorInstance } from "./hast/hast-visitor.js";
 import type { ProcessorContext } from "./pipeline.js";
 
 export interface MdastPluginDefinition {
   name: string;
-  createOnce(context: ProcessorContext): PluginInstance;
+  createOnce(context: ProcessorContext): MdastPluginInstance;
 }
 
 export interface HastPluginDefinition {

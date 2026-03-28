@@ -1,0 +1,171 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        settings:
+          # -- macOS --
+          - host: macos-latest
+            target: x86_64-apple-darwin
+            build: pnpm run build:native -- --target x86_64-apple-darwin
+          - host: macos-latest
+            target: aarch64-apple-darwin
+            build: pnpm run build:native -- --target aarch64-apple-darwin
+
+          # -- Windows --
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            build: pnpm run build:native -- --target x86_64-pc-windows-msvc
+
+          # -- Linux GNU --
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            build: pnpm run build:native -- --target x86_64-unknown-linux-gnu
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            build: pnpm run build:native -- --target aarch64-unknown-linux-gnu -x
+
+          # -- Linux musl --
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            build: pnpm run build:native -- --target x86_64-unknown-linux-musl -x
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            build: pnpm run build:native -- --target aarch64-unknown-linux-musl -x
+
+          # -- WASM --
+          - host: ubuntu-latest
+            target: wasm32-wasip1-threads
+            build: pnpm run build:native -- --target wasm32-wasip1-threads
+
+    name: Build - ${{ matrix.settings.target }}
+    runs-on: ${{ matrix.settings.host }}
+    defaults:
+      run:
+        working-directory: packages/tryckeri
+    env:
+      APP_NAME: tryckeri_napi
+    steps:
+      - name: Enable long paths on Windows
+        if: runner.os == 'Windows'
+        run: git config --system core.longpaths true
+        working-directory: ${{ runner.temp }}
+
+      - uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: latest
+          cache: pnpm
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.settings.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ~/.napi-rs
+            .cargo-cache
+            target/
+          key: ${{ matrix.settings.target }}-cargo-${{ matrix.settings.host }}
+
+      - uses: mlugg/setup-zig@v2
+        if: ${{ contains(matrix.settings.target, 'linux') }}
+        with:
+          version: 0.15.2
+
+      - name: Install cargo-zigbuild
+        uses: taiki-e/install-action@v2
+        if: ${{ contains(matrix.settings.target, 'linux') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tool: cargo-zigbuild
+
+      - name: Install dependencies
+        run: pnpm install
+        working-directory: .
+
+      - name: Build
+        run: ${{ matrix.settings.build }}
+        shell: bash
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        if: matrix.settings.target != 'wasm32-wasip1-threads'
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: packages/tryckeri/${{ env.APP_NAME }}.*.node
+          if-no-files-found: error
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        if: matrix.settings.target == 'wasm32-wasip1-threads'
+        with:
+          name: bindings-${{ matrix.settings.target }}
+          path: packages/tryckeri/${{ env.APP_NAME }}.*.wasm
+          if-no-files-found: error
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: latest
+          cache: pnpm
+          registry-url: https://registry.npmjs.org/
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v7
+        with:
+          path: packages/tryckeri/artifacts
+
+      - name: Build TypeScript and prepare artifacts
+        run: pnpm run build:ts && pnpm run artifacts
+        working-directory: packages/tryckeri
+
+      - uses: bruits/sampo/crates/sampo-github-action@main
+        with:
+          command: auto
+          cargo-token: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+          npm-args: --access public --provenance
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -6,8 +6,8 @@
  */
 
 import { DataMap } from "./data-map.js";
-import { HastReader } from "./hast-reader.js";
-import { visitHast } from "./hast-visitor.js";
+import { HastReader } from "./hast/hast-reader.js";
+import { visitHast } from "./hast/hast-visitor.js";
 import { runPluginsOnBuffer, ProcessorContext } from "./pipeline.js";
 import type { MdastPluginDefinition, HastPluginDefinition } from "./plugin.js";
 import {

@@ -28,7 +28,7 @@
 //!
 //! # Example
 //! ```rust
-//! use pulldown_cmark::{Parser, Options};
+//! use tryckeri_pulldown_cmark::{Parser, Options};
 //!
 //! let markdown_input = "Hello world, this is a ~~complicated~~ *very simple* example.";
 //!
@@ -41,7 +41,7 @@
 //! # #[cfg(feature = "html")] {
 //! // Write to String buffer.
 //! let mut html_output = String::new();
-//! pulldown_cmark::html::push_html(&mut html_output, parser);
+//! tryckeri_pulldown_cmark::html::push_html(&mut html_output, parser);
 //!
 //! // Check that the output is what we expected.
 //! let expected_html = "<p>Hello world, this is a <del>complicated</del> <em>very simple</em> example.</p>\n";
@@ -54,7 +54,7 @@
 //! the comfort of iterating the events:
 //!
 //! ```rust
-//! use pulldown_cmark::{Event, Parser, TextMergeStream};
+//! use tryckeri_pulldown_cmark::{Event, Parser, TextMergeStream};
 //!
 //! let markdown_input = "Hello world, this is a ~~complicated~~ *very simple* example.";
 //!

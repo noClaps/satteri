@@ -6,7 +6,7 @@ publish = false
 
 [dependencies]
 mdast-arena = { path = "../mdast-arena" }
-pulldown-cmark = { path = "../pulldown-cmark" }
+pulldown-cmark = { path = "../pulldown-cmark", package = "tryckeri-pulldown-cmark" }
 
 [dev-dependencies]
 tryckeri-hast = { path = "../hast" }

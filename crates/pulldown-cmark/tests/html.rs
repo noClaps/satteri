@@ -1,7 +1,7 @@
 // Tests for HTML spec.
 #![cfg(feature = "html")]
 
-use pulldown_cmark::{html, BrokenLink, Options, Parser};
+use tryckeri_pulldown_cmark::{html, BrokenLink, Options, Parser};
 
 #[test]
 fn html_test_1() {
@@ -232,7 +232,7 @@ fn html_test_broken_callback() {
 <a href="https://example.org">baz</a>,</p>
 "##;
 
-    use pulldown_cmark::{html, Options, Parser};
+    use tryckeri_pulldown_cmark::{html, Options, Parser};
 
     let mut s = String::new();
 

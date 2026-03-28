@@ -1,8 +1,8 @@
-import { materializeNode, TYPE_NAMES } from "./materializer.js";
-import { CommandBuffer, classifyReturn } from "./command-buffer.js";
-import type { MdastNode } from "./types.js";
+import { materializeNode, TYPE_NAMES } from "./mdast-materializer.js";
+import { CommandBuffer, classifyReturn } from "../command-buffer.js";
+import type { MdastNode } from "../types.js";
 import type { MdastReader } from "./mdast-reader.js";
-import type { DataMap } from "./data-map.js";
+import type { DataMap } from "../data-map.js";
 
 export const MutationType = {
   Replace: "replace",
@@ -25,7 +25,7 @@ export interface Mutation {
   value?: unknown;
 }
 
-export interface Diagnostic {
+export interface MdastDiagnostic {
   message: string;
   nodeId?: number | undefined;
   position?: MdastNode["position"] | undefined;
@@ -69,9 +69,9 @@ const VISITOR_KEYS = new Set([
   "mdxjsEsm",
 ]);
 
-export class VisitorContext {
+export class MdastVisitorContext {
   readonly #commandBuffer: CommandBuffer = new CommandBuffer();
-  readonly #diagnostics: Diagnostic[] = [];
+  readonly #diagnostics: MdastDiagnostic[] = [];
   readonly #reader: MdastReader;
   readonly #dataMap: DataMap;
   readonly #rootId: number = 0;
@@ -143,22 +143,22 @@ export class VisitorContext {
     return this.#commandBuffer;
   }
 
-  getDiagnostics(): Diagnostic[] {
+  getDiagnostics(): MdastDiagnostic[] {
     return this.#diagnostics;
   }
 }
 
-export interface PluginInstance {
-  before?(context: VisitorContext): void;
-  after?(context: VisitorContext): void;
-  transformRoot?(root: MdastNode, context: VisitorContext): MdastNode | undefined | null;
+export interface MdastPluginInstance {
+  before?(context: MdastVisitorContext): void;
+  after?(context: MdastVisitorContext): void;
+  transformRoot?(root: MdastNode, context: MdastVisitorContext): MdastNode | undefined | null;
   [nodeTypeName: string]: unknown;
 }
 
-export interface VisitResult {
+export interface MdastVisitResult {
   /** Binary command buffer containing all mutations. */
   commandBuffer: Uint8Array;
-  diagnostics: Diagnostic[];
+  diagnostics: MdastDiagnostic[];
   hasMutations: boolean;
 }
 
@@ -171,10 +171,10 @@ export interface VisitResult {
  */
 export function visitMdast(
   reader: MdastReader,
-  plugin: PluginInstance,
+  plugin: MdastPluginInstance,
   dataMap: DataMap,
-): VisitResult {
-  const context = new VisitorContext(reader, dataMap);
+): MdastVisitResult {
+  const context = new MdastVisitorContext(reader, dataMap);
 
   plugin.before?.(context);
 
@@ -207,7 +207,7 @@ export function visitMdast(
     // Build reverse map: numeric type → visitor function
     const TYPE_TO_VISITOR = new Map<
       number,
-      (node: MdastNode, context: VisitorContext) => unknown
+      (node: MdastNode, context: MdastVisitorContext) => unknown
     >();
     for (const [name, fn] of Object.entries(plugin)) {
       if (VISITOR_KEYS.has(name) && typeof fn === "function") {
@@ -215,7 +215,7 @@ export function visitMdast(
           if (typeName === name) {
             TYPE_TO_VISITOR.set(
               Number(num),
-              fn as (node: MdastNode, context: VisitorContext) => unknown,
+              fn as (node: MdastNode, context: MdastVisitorContext) => unknown,
             );
             break;
           }

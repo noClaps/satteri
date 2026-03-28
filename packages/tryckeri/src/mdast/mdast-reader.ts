@@ -1,6 +1,4 @@
-import type { ArenaNodeRaw, BufferHeader, StringRefRaw, MdxJsxAttributeUnion } from "./types.js";
-
-type MdxJsxAttribute = MdxJsxAttributeUnion;
+import type { ArenaNodeRaw, BufferHeader, StringRefRaw, MdxJsxAttributeUnion } from "../types.js";
 
 // Node type discriminant values (must match NodeType enum in node.rs)
 export const NodeType = Object.freeze({
@@ -438,7 +436,7 @@ export class MdastReader {
    */
   getMdxJsxElementData(nodeId: number): {
     name: string | null;
-    attributes: MdxJsxAttribute[];
+    attributes: MdxJsxAttributeUnion[];
   } {
     const data = this.getTypeData(nodeId);
     if (data.length < 16) {
@@ -451,7 +449,7 @@ export class MdastReader {
     const view = new DataView(data.buffer, data.byteOffset + 8);
     const attrCount = view.getUint32(0, true);
 
-    const attributes: MdxJsxAttribute[] = [];
+    const attributes: MdxJsxAttributeUnion[] = [];
     for (let i = 0; i < attrCount; i++) {
       const base = 16 + i * 20;
       const kind = data[base]!;

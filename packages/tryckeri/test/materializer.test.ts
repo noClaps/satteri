@@ -1,7 +1,7 @@
 import { test, expect, describe } from "vitest";
-import { MdastReader } from "../src/mdast-reader.js";
+import { MdastReader } from "../src/mdast/mdast-reader.js";
 import { DataMap } from "../src/data-map.js";
-import { materializeTree } from "../src/materializer.js";
+import { materializeTree } from "../src/mdast/mdast-materializer.js";
 import { buildHelloWorldBuffer } from "./fixtures.js";
 import { parseMdxToBuffer } from "../index.js";
 

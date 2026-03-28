@@ -5,8 +5,8 @@ import {
   defineMdastPlugin,
   defineHastPlugin,
 } from "../src/index.js";
-import type { HastNode } from "../src/hast-materializer.js";
-import type { HastVisitorContext } from "../src/hast-visitor.js";
+import type { HastNode } from "../src/hast/hast-materializer.js";
+import type { HastVisitorContext } from "../src/hast/hast-visitor.js";
 import type { MdastNode } from "../src/types.js";
 
 // ---------------------------------------------------------------------------

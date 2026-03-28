@@ -1,7 +1,17 @@
 {
   "name": "tryckeri",
   "version": "0.1.13",
-  "description": "High-performance Markdown processing with Rust arena backend",
+  "description": "High-performance Markdown processing",
+  "files": [
+    "dist",
+    "browser.js",
+    "index.js",
+    "index.d.ts",
+    "tryckeri_napi.wasi.cjs",
+    "tryckeri_napi.wasi-browser.js",
+    "wasi-worker.mjs",
+    "wasi-worker-browser.js"
+  ],
   "type": "module",
   "main": "./dist/index.js",
   "exports": {
@@ -13,17 +23,33 @@
     "build:native:debug": "napi build --manifest-path ../../crates/napi-binding/Cargo.toml --output-dir . --platform --esm",
     "build:ts": "tsc",
     "build": "pnpm build:native && pnpm build:ts",
+    "prepublishOnly": "napi prepublish --skip-gh-release",
+    "artifacts": "napi create-npm-dirs && napi artifacts && napi version",
     "dev": "tsc --watch",
     "vitest": "vitest",
     "test": "vitest run",
     "bench": "vitest bench --run"
   },
   "devDependencies": {
+    "@types/hast": "^3.0.4",
+    "@types/mdast": "^4.0.4",
     "@types/node": "^25.5.0",
+    "@types/unist": "^3.0.3",
+    "mdast-util-mdx-expression": "^2.0.1",
+    "mdast-util-mdx-jsx": "^3.2.0",
+    "mdast-util-mdxjs-esm": "^2.0.1",
     "vitest": "^4"
+  },
+  "optionalDependencies": {
+    "@bruits/tryckeri-linux-x64-gnu": "0.1.13",
+    "@bruits/tryckeri-darwin-x64": "0.1.13",
+    "@bruits/tryckeri-darwin-arm64": "0.1.13",
+    "@bruits/tryckeri-win32-x64-msvc": "0.1.13",
+    "@bruits/tryckeri-wasm32-wasi": "0.1.13"
   },
   "napi": {
     "binaryName": "tryckeri_napi",
+    "packageName": "@bruits/tryckeri",
     "targets": [
       "x86_64-unknown-linux-gnu",
       "x86_64-apple-darwin",

@@ -1,4 +1,11 @@
-import type { BufferHeader } from "./types.js";
+import type { BufferHeader } from "../types.js";
+import type {
+  MdxJsxAttribute,
+  MdxJsxExpressionAttribute,
+  MdxJsxAttributeValueExpression,
+} from "mdast-util-mdx-jsx";
+
+export type { MdxJsxAttribute, MdxJsxExpressionAttribute, MdxJsxAttributeValueExpression };
 
 // HAST node type constants (must match node_types.rs)
 export const HAST_ROOT = 0;
@@ -29,22 +36,6 @@ export const MDX_ATTR_SPREAD = 3;
 export interface HastProperty {
   name: string;
   value: string | boolean | string[];
-}
-
-export interface MdxJsxAttribute {
-  type: "mdxJsxAttribute";
-  name: string;
-  value: string | MdxJsxAttributeValueExpression | null;
-}
-
-export interface MdxJsxExpressionAttribute {
-  type: "mdxJsxExpressionAttribute";
-  value: string;
-}
-
-export interface MdxJsxAttributeValueExpression {
-  type: "mdxJsxAttributeValueExpression";
-  value: string;
 }
 
 // ArenaNode field offsets (same layout as MDAST — shared binary format)

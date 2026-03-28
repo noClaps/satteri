@@ -277,7 +277,7 @@ impl<'input, CB: ParserCallbacks<'input>> Parser<'input, CB> {
     /// Creates a new event iterator for markdown text with given options and callbacks.
     ///
     /// ```
-    /// # use pulldown_cmark::{BrokenLink, CowStr, Event, Options, Parser, ParserCallbacks, Tag};
+    /// # use tryckeri_pulldown_cmark::{BrokenLink, CowStr, Event, Options, Parser, ParserCallbacks, Tag};
     /// struct CustomCallbacks;
     /// impl<'input> ParserCallbacks<'input> for CustomCallbacks {
     ///     fn handle_broken_link(

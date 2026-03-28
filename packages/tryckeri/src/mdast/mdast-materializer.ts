@@ -1,6 +1,6 @@
-import type { MdastNode } from "./types.js";
+import type { MdastNode } from "../types.js";
 import type { MdastReader } from "./mdast-reader.js";
-import type { DataMap } from "./data-map.js";
+import type { DataMap } from "../data-map.js";
 
 export const TYPE_NAMES: Record<number, string> = {
   0: "root",

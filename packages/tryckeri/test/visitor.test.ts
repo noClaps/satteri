@@ -1,7 +1,7 @@
 import { test, expect } from "vitest";
-import { MdastReader } from "../src/mdast-reader.js";
+import { MdastReader } from "../src/mdast/mdast-reader.js";
 import { DataMap } from "../src/data-map.js";
-import { visitMdast, MutationType, type VisitorContext } from "../src/visitor.js";
+import { visitMdast, MutationType, type MdastVisitorContext } from "../src/mdast/mdast-visitor.js";
 import { buildHelloWorldBuffer } from "./fixtures.js";
 import type { MdastNode } from "../src/types.js";
 
@@ -75,7 +75,7 @@ test("context.removeNode creates a Remove command in the buffer", async () => {
   const result = await visitMdast(
     reader,
     {
-      heading(node: MdastNode, context: VisitorContext) {
+      heading(node: MdastNode, context: MdastVisitorContext) {
         context.removeNode(node);
       },
     },
@@ -95,7 +95,7 @@ test("context.report creates a diagnostic entry", async () => {
   const result = await visitMdast(
     reader,
     {
-      heading(node: MdastNode, context: VisitorContext) {
+      heading(node: MdastNode, context: MdastVisitorContext) {
         context.report({ message: "test diagnostic", node, severity: "warning" });
       },
     },
@@ -229,7 +229,7 @@ test("hasMutations is false when no mutations, true when there are mutations", a
   const mutResult = await visitMdast(
     reader,
     {
-      heading(node: MdastNode, context: VisitorContext) {
+      heading(node: MdastNode, context: MdastVisitorContext) {
         context.removeNode(node);
       },
     },

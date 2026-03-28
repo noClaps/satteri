@@ -5,6 +5,7 @@
     "declaration": true,
     "sourceMap": true,
     "outDir": "dist",
+    "stripInternal": true,
   },
   "include": ["src"],
   "exclude": ["dist", "node_modules"],

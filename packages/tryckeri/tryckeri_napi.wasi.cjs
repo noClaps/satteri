@@ -39,9 +39,9 @@ if (__nodeFs.existsSync(__wasmDebugFilePath)) {
   __wasmFilePath = __wasmDebugFilePath
 } else if (!__nodeFs.existsSync(__wasmFilePath)) {
   try {
-    __wasmFilePath = require.resolve('tryckeri-wasm32-wasi/tryckeri_napi.wasm32-wasi.wasm')
+    __wasmFilePath = require.resolve('@bruits/tryckeri-wasm32-wasi/tryckeri_napi.wasm32-wasi.wasm')
   } catch {
-    throw new Error('Cannot find tryckeri_napi.wasm32-wasi.wasm file, and tryckeri-wasm32-wasi package is not installed.')
+    throw new Error('Cannot find tryckeri_napi.wasm32-wasi.wasm file, and @bruits/tryckeri-wasm32-wasi package is not installed.')
   }
 }
 

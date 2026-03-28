@@ -4,7 +4,7 @@
 //! JSX flow, JSX text. Edge cases from markdown-rs's mdx_*.rs test files are
 //! included.
 
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use tryckeri_pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 
 fn mdx_events(input: &str) -> Vec<Event<'_>> {
     let opts = Options::ENABLE_MDX

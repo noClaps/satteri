@@ -1,11 +1,11 @@
 import { describe, test, expect } from "vitest";
-import { HastReader } from "../src/hast-reader.js";
+import { HastReader } from "../src/hast/hast-reader.js";
 import { DataMap } from "../src/data-map.js";
-import { visitHast } from "../src/hast-visitor.js";
-import { materializeHastTree } from "../src/hast-materializer.js";
+import { visitHast } from "../src/hast/hast-visitor.js";
+import { materializeHastTree } from "../src/hast/hast-materializer.js";
 import { parseToHastBuffer, hastBufferToHtmlStr, applyMutations, parseMdxToHastBuffer } from "../index.js";
-import type { HastNode } from "../src/hast-materializer.js";
-import type { HastVisitorContext } from "../src/hast-visitor.js";
+import type { HastNode } from "../src/hast/hast-materializer.js";
+import type { HastVisitorContext } from "../src/hast/hast-visitor.js";
 
 // Parse a simple markdown document to a HAST binary buffer for testing.
 // "# Hello\n\nWorld" produces: root > [h1 > text("Hello"), p > text("World")]
@@ -269,7 +269,7 @@ describe("MDX JSX attributes on HAST nodes", () => {
     const buf = parseMdxToHastBuffer("<Component />\n");
     const reader = new HastReader(buf);
     const tree = materializeHastTree(reader, new DataMap());
-    const jsx = findHastNode(tree, "mdxJsxElement");
+    const jsx = findHastNode(tree, "mdxJsxFlowElement");
     expect(jsx).not.toBeNull();
     expect(jsx!.name).toBe("Component");
     expect(jsx!.attributes).toEqual([]);
@@ -279,7 +279,7 @@ describe("MDX JSX attributes on HAST nodes", () => {
     const buf = parseMdxToHastBuffer('<Component foo="bar" />\n');
     const reader = new HastReader(buf);
     const tree = materializeHastTree(reader, new DataMap());
-    const jsx = findHastNode(tree, "mdxJsxElement");
+    const jsx = findHastNode(tree, "mdxJsxFlowElement");
     expect(jsx!.name).toBe("Component");
     expect(jsx!.attributes).toEqual([
       { type: "mdxJsxAttribute", name: "foo", value: "bar" },
@@ -290,7 +290,7 @@ describe("MDX JSX attributes on HAST nodes", () => {
     const buf = parseMdxToHastBuffer("<Component disabled />\n");
     const reader = new HastReader(buf);
     const tree = materializeHastTree(reader, new DataMap());
-    const jsx = findHastNode(tree, "mdxJsxElement");
+    const jsx = findHastNode(tree, "mdxJsxFlowElement");
     expect(jsx!.attributes).toEqual([
       { type: "mdxJsxAttribute", name: "disabled", value: null },
     ]);
@@ -300,7 +300,7 @@ describe("MDX JSX attributes on HAST nodes", () => {
     const buf = parseMdxToHastBuffer("<Component count={42} />\n");
     const reader = new HastReader(buf);
     const tree = materializeHastTree(reader, new DataMap());
-    const jsx = findHastNode(tree, "mdxJsxElement");
+    const jsx = findHastNode(tree, "mdxJsxFlowElement");
     expect(jsx!.attributes).toEqual([
       {
         type: "mdxJsxAttribute",
@@ -314,7 +314,7 @@ describe("MDX JSX attributes on HAST nodes", () => {
     const buf = parseMdxToHastBuffer("<Component {...props} />\n");
     const reader = new HastReader(buf);
     const tree = materializeHastTree(reader, new DataMap());
-    const jsx = findHastNode(tree, "mdxJsxElement");
+    const jsx = findHastNode(tree, "mdxJsxFlowElement");
     expect(jsx!.attributes).toEqual([
       { type: "mdxJsxExpressionAttribute", value: "...props" },
     ]);
@@ -326,7 +326,7 @@ describe("MDX JSX attributes on HAST nodes", () => {
     );
     const reader = new HastReader(buf);
     const tree = materializeHastTree(reader, new DataMap());
-    const jsx = findHastNode(tree, "mdxJsxElement");
+    const jsx = findHastNode(tree, "mdxJsxFlowElement");
     expect(jsx!.attributes).toHaveLength(4);
     expect(jsx!.attributes![0]).toEqual({
       type: "mdxJsxAttribute",

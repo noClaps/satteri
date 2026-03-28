@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { MdastReader, NodeType, NodeTypeName } from "../src/mdast-reader.js";
+import { MdastReader, NodeType, NodeTypeName } from "../src/mdast/mdast-reader.js";
 import { buildHelloWorldBuffer, buildTestBuffer } from "./fixtures.js";
 
 test("NodeType constants", () => {

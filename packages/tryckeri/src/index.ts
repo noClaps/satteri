@@ -1,7 +1,7 @@
-export { MdastReader, NodeType, NodeTypeName } from "./mdast-reader.js";
+export { MdastReader, NodeType, NodeTypeName } from "./mdast/mdast-reader.js";
 export { DataMap } from "./data-map.js";
-export { materializeNode, materializeTree, TYPE_NAMES } from "./materializer.js";
-export { visitMdast, MutationType } from "./visitor.js";
+export { materializeNode, materializeTree, TYPE_NAMES } from "./mdast/mdast-materializer.js";
+export { visitMdast, MutationType } from "./mdast/mdast-visitor.js";
 export { CommandBuffer, classifyReturn, resolveFieldId } from "./command-buffer.js";
 export { defineMdastPlugin, defineHastPlugin } from "./plugin.js";
 export type { MdastPluginDefinition, HastPluginDefinition } from "./plugin.js";
@@ -39,21 +39,21 @@ export {
   PROP_BOOL_FALSE,
   PROP_SPACE_SEP,
   PROP_COMMA_SEP,
-} from "./hast-reader.js";
+} from "./hast/hast-reader.js";
 export type {
   HastProperty,
   MdxJsxAttribute,
   MdxJsxExpressionAttribute,
   MdxJsxAttributeValueExpression,
-} from "./hast-reader.js";
-export { materializeHastNode, materializeHastTree } from "./hast-materializer.js";
-export type { HastNode } from "./hast-materializer.js";
-export { visitHast } from "./hast-visitor.js";
+} from "./hast/hast-reader.js";
+export { materializeHastNode, materializeHastTree } from "./hast/hast-materializer.js";
+export type { HastNode } from "./hast/hast-materializer.js";
+export { visitHast } from "./hast/hast-visitor.js";
 export type {
   HastVisitorInstance,
   HastVisitorContext,
-  VisitResult as HastVisitResult,
-} from "./hast-visitor.js";
+  HastVisitResult,
+} from "./hast/hast-visitor.js";
 
 export { compileMarkdownToHtml, compileMdxToJs } from "./compile.js";
 export type { CompileOptions, OptimizeStaticConfig } from "./compile.js";

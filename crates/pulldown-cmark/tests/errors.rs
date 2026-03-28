@@ -1,4 +1,4 @@
-use pulldown_cmark::{Options, Parser};
+use tryckeri_pulldown_cmark::{Options, Parser};
 
 fn parse(md: &str) {
     let parser = Parser::new(md);

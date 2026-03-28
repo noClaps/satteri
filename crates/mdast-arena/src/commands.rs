@@ -534,7 +534,7 @@ fn name_to_hast_raw_type(name: &str) -> Option<u8> {
         "comment" => Some(HAST_COMMENT_TYPE),
         "doctype" => Some(HAST_DOCTYPE_TYPE),
         "raw" => Some(HAST_RAW_TYPE),
-        "mdxJsxElement" => Some(HAST_MDX_JSX_ELEMENT_TYPE),
+        "mdxJsxFlowElement" => Some(HAST_MDX_JSX_ELEMENT_TYPE),
         "mdxJsxTextElement" => Some(HAST_MDX_JSX_TEXT_ELEMENT_TYPE),
         "mdxExpression" => Some(HAST_MDX_EXPRESSION_TYPE),
         "mdxjsEsm" => Some(HAST_MDX_ESM_TYPE),

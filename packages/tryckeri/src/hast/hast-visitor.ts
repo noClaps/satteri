@@ -1,4 +1,5 @@
 import { materializeHastNode, type HastNode } from "./hast-materializer.js";
+import type { MdxJsxAttributeUnion } from "../types.js";
 import {
   HastReader,
   HAST_ROOT,
@@ -12,10 +13,10 @@ import {
   HAST_MDX_ESM,
   type HastProperty,
 } from "./hast-reader.js";
-import { CommandBuffer } from "./command-buffer.js";
-import type { DataMap } from "./data-map.js";
+import { CommandBuffer } from "../command-buffer.js";
+import type { DataMap } from "../data-map.js";
 
-export interface Diagnostic {
+export interface HastDiagnostic {
   message: string;
   nodeId?: number | undefined;
   severity: "error" | "warning" | "info";
@@ -26,27 +27,27 @@ export interface HastVisitorContext {
   replaceNode(node: HastNode, newNode: HastNode): void;
   setProperty(node: HastNode, key: string, value: unknown): void;
   report(opts: { message: string; node?: HastNode; severity?: "error" | "warning" | "info" }): void;
-  getDiagnostics(): Diagnostic[];
+  getDiagnostics(): HastDiagnostic[];
 }
 
 /** Inject `_hast: true` marker on a HastNode and all its children for JSON serialization. */
 function markHast(node: HastNode): Record<string, unknown> {
+  const n = node as unknown as Record<string, unknown>;
   const obj: Record<string, unknown> = { _hast: true, type: node.type };
-  if (node.tagName !== undefined) obj.tagName = node.tagName;
-  if (node.properties !== undefined) obj.properties = node.properties;
-  if (node.value !== undefined) obj.value = node.value;
-  // MDX JSX elements store name and attributes on the node
-  if (node.name !== undefined) obj.name = node.name;
-  if (node.attributes !== undefined) obj.attributes = node.attributes;
-  if (node.children) {
-    obj.children = node.children.map(markHast);
+  if ("tagName" in node) obj.tagName = n.tagName;
+  if ("properties" in node) obj.properties = n.properties;
+  if ("value" in node) obj.value = n.value;
+  if ("name" in node) obj.name = n.name;
+  if ("attributes" in node) obj.attributes = n.attributes;
+  if ("children" in node) {
+    obj.children = (n.children as HastNode[]).map(markHast);
   }
   return obj;
 }
 
 class HastVisitorContextImpl implements HastVisitorContext {
   readonly #commandBuffer: CommandBuffer = new CommandBuffer();
-  readonly #diagnostics: Diagnostic[] = [];
+  readonly #diagnostics: HastDiagnostic[] = [];
   /** Track accumulated node state for multiple setProperty calls on the same node. */
   readonly #pendingNodes: Map<number, HastNode> = new Map();
 
@@ -70,10 +71,10 @@ class HastVisitorContextImpl implements HastVisitorContext {
       void current.properties;
       void current.children;
     }
-    const updated = { ...current };
-    if (current.type === "mdxJsxElement" || current.type === "mdxJsxTextElement") {
+    const updated: Record<string, unknown> = { ...current };
+    if (current.type === "mdxJsxFlowElement" || current.type === "mdxJsxTextElement") {
       // MDX JSX nodes use `attributes`, not `properties`
-      const attrs = [...(updated.attributes ?? [])];
+      const attrs = [...((updated.attributes as MdxJsxAttributeUnion[] | undefined) ?? [])];
       // Remove existing attribute with same name, if any
       const idx = attrs.findIndex(
         (a) => a.type === "mdxJsxAttribute" && a.name === key,
@@ -90,10 +91,10 @@ class HastVisitorContextImpl implements HastVisitorContext {
       updated.attributes = attrs;
     } else {
       // Regular HAST elements use `properties`
-      if (!updated.properties) updated.properties = {};
-      updated.properties = { ...updated.properties, [key]: value as string | boolean | string[] };
+      const props = (updated.properties ?? {}) as Record<string, string | boolean | string[]>;
+      updated.properties = { ...props, [key]: value as string | boolean | string[] };
     }
-    this.replaceNode(node, updated as HastNode);
+    this.replaceNode(node, updated as unknown as HastNode);
   }
 
   report({
@@ -112,7 +113,7 @@ class HastVisitorContextImpl implements HastVisitorContext {
     return this.#commandBuffer;
   }
 
-  getDiagnostics(): Diagnostic[] {
+  getDiagnostics(): HastDiagnostic[] {
     return this.#diagnostics;
   }
 }
@@ -126,15 +127,15 @@ export interface HastVisitorInstance {
   comment?(node: HastNode, ctx: HastVisitorContext): HastNode | void;
   raw?(node: HastNode, ctx: HastVisitorContext): HastNode | void;
   doctype?(node: HastNode, ctx: HastVisitorContext): HastNode | void;
-  mdxJsxElement?(node: HastNode, ctx: HastVisitorContext): HastNode | void;
+  mdxJsxFlowElement?(node: HastNode, ctx: HastVisitorContext): HastNode | void;
   mdxJsxTextElement?(node: HastNode, ctx: HastVisitorContext): HastNode | void;
   mdxExpression?(node: HastNode, ctx: HastVisitorContext): HastNode | void;
   mdxjsEsm?(node: HastNode, ctx: HastVisitorContext): HastNode | void;
 }
 
-export interface VisitResult {
+export interface HastVisitResult {
   commandBuffer: Uint8Array;
-  diagnostics: Diagnostic[];
+  diagnostics: HastDiagnostic[];
   hasMutations: boolean;
 }
 
@@ -290,7 +291,7 @@ const TYPE_TO_METHOD: Record<number, keyof HastVisitorInstance> = {
   [HAST_TEXT]: "text",
   [HAST_COMMENT]: "comment",
   [HAST_RAW]: "raw",
-  [HAST_MDX_JSX_ELEMENT]: "mdxJsxElement",
+  [HAST_MDX_JSX_ELEMENT]: "mdxJsxFlowElement",
   [HAST_MDX_JSX_TEXT_ELEMENT]: "mdxJsxTextElement",
   [HAST_MDX_EXPRESSION]: "mdxExpression",
   [HAST_MDX_ESM]: "mdxjsEsm",
@@ -305,7 +306,7 @@ export function visitHast(
   reader: HastReader,
   plugin: HastVisitorInstance,
   dataMap: DataMap,
-): VisitResult {
+): HastVisitResult {
   const ctx = new HastVisitorContextImpl();
   const returnBuffer = new CommandBuffer();
 

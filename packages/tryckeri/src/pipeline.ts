@@ -1,23 +1,23 @@
-import { visitMdast } from "./visitor.js";
+import { visitMdast } from "./mdast/mdast-visitor.js";
 import { DataMap } from "./data-map.js";
-import { MdastReader } from "./mdast-reader.js";
-import { materializeNode } from "./materializer.js";
+import { MdastReader } from "./mdast/mdast-reader.js";
+import { materializeNode } from "./mdast/mdast-materializer.js";
 import type { MdastPluginDefinition } from "./plugin.js";
 import type { MdastNode } from "./types.js";
-import type { Diagnostic } from "./visitor.js";
+import type { MdastDiagnostic } from "./mdast/mdast-visitor.js";
 
 // applyMutations is the NAPI function that takes an arena buffer + command
 // buffer and returns a new arena buffer with all mutations applied.
 import { applyMutations } from "../index.js";
 
 export class ProcessorContext {
-  readonly #diagnostics: Diagnostic[] = [];
+  readonly #diagnostics: MdastDiagnostic[] = [];
 
-  report(diagnostic: Diagnostic): void {
+  report(diagnostic: MdastDiagnostic): void {
     this.#diagnostics.push(diagnostic);
   }
 
-  getDiagnostics(): Diagnostic[] {
+  getDiagnostics(): MdastDiagnostic[] {
     return [...this.#diagnostics];
   }
 }
@@ -31,7 +31,7 @@ export interface FileContext {
 export interface RunResult {
   buffer: ArrayBuffer | Uint8Array;
   dataMap: DataMap;
-  diagnostics: Diagnostic[];
+  diagnostics: MdastDiagnostic[];
   mutationCount: number;
   structuralMutationCount: number;
 }
@@ -45,7 +45,7 @@ export function runPluginsOnBuffer(
   { filename = "<unknown>", dataMap }: { filename?: string; dataMap?: DataMap } = {},
 ): RunResult {
   const dm = dataMap ?? new DataMap();
-  const allDiagnostics: Diagnostic[] = [];
+  const allMdastDiagnostics: MdastDiagnostic[] = [];
   let totalMutations = 0;
   let structuralMutations = 0;
   let currentBuffer = buffer;
@@ -63,7 +63,7 @@ export function runPluginsOnBuffer(
 
     const wrappedPlugin = wrapInstance(instance, fileContext);
     const result = visitMdast(reader, wrappedPlugin, dm);
-    allDiagnostics.push(...result.diagnostics);
+    allMdastDiagnostics.push(...result.diagnostics);
 
     if (result.hasMutations) {
       totalMutations += 1;
@@ -82,7 +82,7 @@ export function runPluginsOnBuffer(
   return {
     buffer: currentBuffer,
     dataMap: dm,
-    diagnostics: allDiagnostics,
+    diagnostics: allMdastDiagnostics,
     mutationCount: totalMutations,
     structuralMutationCount: structuralMutations,
   };

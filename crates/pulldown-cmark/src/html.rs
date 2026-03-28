@@ -572,7 +572,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use pulldown_cmark::{html, Parser};
+/// use tryckeri_pulldown_cmark::{html, Parser};
 ///
 /// let markdown_str = r#"
 /// hello
@@ -611,7 +611,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use pulldown_cmark::{html, Parser};
+/// use tryckeri_pulldown_cmark::{html, Parser};
 /// use std::io::Cursor;
 ///
 /// let markdown_str = r#"
@@ -648,7 +648,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use pulldown_cmark::{html, Parser};
+/// use tryckeri_pulldown_cmark::{html, Parser};
 ///
 /// let markdown_str = r#"
 /// hello

@@ -3,6 +3,7 @@
 pub mod codec;
 pub mod convert;
 pub mod from_binary;
+pub(crate) mod html;
 pub mod node;
 pub mod node_types;
 pub mod serialize;

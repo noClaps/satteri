@@ -1,5 +1,6 @@
 //! HAST → HTML serialization.
 
+use crate::html::is_void_element;
 use crate::node::{HastArena, HastNodeType, PropertyValue};
 
 pub fn hast_to_html(hast: &HastArena) -> String {
@@ -50,7 +51,7 @@ fn serialize_node(node_id: u32, hast: &HastArena, out: &mut String) {
             }
 
             if is_void {
-                out.push_str(" />");
+                out.push('>');
             } else {
                 out.push('>');
                 for &child_id in hast.get_children(node_id) {
@@ -95,24 +96,4 @@ fn serialize_node(node_id: u32, hast: &HastArena, out: &mut String) {
         | HastNodeType::MdxExpression
         | HastNodeType::MdxEsm => {}
     }
-}
-
-fn is_void_element(tag: &str) -> bool {
-    matches!(
-        tag,
-        "area"
-            | "base"
-            | "br"
-            | "col"
-            | "embed"
-            | "hr"
-            | "img"
-            | "input"
-            | "link"
-            | "meta"
-            | "param"
-            | "source"
-            | "track"
-            | "wbr"
-    )
 }

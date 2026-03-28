@@ -5,27 +5,8 @@ use tryckeri_mdast::{BufferError, MdastArena, MdastView};
 use crate::codec::{
     decode_element_prop, decode_element_prop_count, decode_element_tag, decode_text_data,
 };
+use crate::html::is_void_element;
 use crate::node_types::*;
-
-fn is_void(tag: &str) -> bool {
-    matches!(
-        tag,
-        "area"
-            | "base"
-            | "br"
-            | "col"
-            | "embed"
-            | "hr"
-            | "img"
-            | "input"
-            | "link"
-            | "meta"
-            | "param"
-            | "source"
-            | "track"
-            | "wbr"
-    )
-}
 
 pub fn hast_buffer_to_html(buf: &[u8]) -> Result<String, BufferError> {
     let view = MdastArena::from_raw_buffer(buf)?;
@@ -82,7 +63,7 @@ pub fn render_node(node_id: u32, view: &MdastView, out: &mut String) {
                 }
             }
 
-            if is_void(tag) {
+            if is_void_element(tag) {
                 out.push('>');
             } else {
                 out.push('>');

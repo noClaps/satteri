@@ -10,7 +10,8 @@
     "tryckeri_napi.wasi.cjs",
     "tryckeri_napi.wasi-browser.js",
     "wasi-worker.mjs",
-    "wasi-worker-browser.js"
+    "wasi-worker-browser.js",
+    "tryckeri_napi.linux-x64-gnu.node"
   ],
   "type": "module",
   "main": "./dist/index.js",
@@ -19,8 +20,8 @@
     "./arena-reader": "./dist/arena-reader.js"
   },
   "scripts": {
-    "build:native": "napi build --manifest-path ../../crates/napi-binding/Cargo.toml --output-dir . --platform --release --esm",
-    "build:native:debug": "napi build --manifest-path ../../crates/napi-binding/Cargo.toml --output-dir . --platform --esm",
+    "build:native": "napi build --manifest-path ../../crates/tryckeri-napi-binding/Cargo.toml --output-dir . --platform --release --esm",
+    "build:native:debug": "napi build --manifest-path ../../crates/tryckeri-napi-binding/Cargo.toml --output-dir . --platform --esm",
     "build:ts": "tsc --project tsconfig.build.json",
     "build": "pnpm build:native && pnpm build:ts",
     "prepublishOnly": "napi prepublish --skip-gh-release",

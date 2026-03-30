@@ -1,0 +1,8 @@
+[package]
+name = "tryckeri-plugin-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tryckeri-mdast = { path = "../tryckeri-mdast" }
+rustc-hash = "2"

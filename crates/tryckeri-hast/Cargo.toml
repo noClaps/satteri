@@ -1,0 +1,11 @@
+[package]
+name = "tryckeri-hast"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tryckeri-mdast = { path = "../tryckeri-mdast" }
+pulldown-cmark-escape = "0.11"
+
+[dev-dependencies]
+tryckeri-parser = { path = "../tryckeri-parser" }

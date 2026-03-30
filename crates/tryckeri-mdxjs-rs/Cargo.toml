@@ -1,0 +1,32 @@
+[dependencies]
+tryckeri-mdast = { path = "../tryckeri-mdast" }
+tryckeri-parser = { path = "../tryckeri-parser" }
+tryckeri-hast = { path = "../tryckeri-hast" }
+rustc-hash = "2"
+serde = { version = "1", features = ["derive"] }
+oxc_allocator = { workspace = true }
+oxc_ast = { workspace = true }
+oxc_codegen = { workspace = true }
+oxc_parser = { workspace = true }
+oxc_span = { workspace = true }
+oxc_syntax = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = "1"
+
+[features]
+serializable = []
+
+[package]
+authors = ["Titus Wormer <tituswormer@gmail.com>", "Bruits"]
+categories = ["compilers", "text-processing"]
+description = "Compile MDX to JavaScript in Rust."
+edition = "2024"
+homepage = "https://github.com/bruits/tryckeri"
+include = ["license", "src/"]
+keywords = ["compile", "markdown", "mdx"]
+license = "MIT"
+name = "tryckeri-mdxjs"
+repository = "https://github.com/bruits/tryckeri"
+rust-version = "1.91.0"
+version = "0.1.0"

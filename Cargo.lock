@@ -343,24 +343,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
 
 [[package]]
-name = "mdxjs"
-version = "1.0.4"
-dependencies = [
- "oxc_allocator",
- "oxc_ast",
- "oxc_codegen",
- "oxc_parser",
- "oxc_span",
- "oxc_syntax",
- "parser",
- "pretty_assertions",
- "rustc-hash",
- "serde",
- "tryckeri-hast",
- "tryckeri-mdast",
-]
-
-[[package]]
 name = "memchr"
 version = "2.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -742,15 +724,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "parser"
-version = "0.1.0"
-dependencies = [
- "tryckeri-hast",
- "tryckeri-mdast",
- "tryckeri-pulldown-cmark",
-]
-
-[[package]]
 name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1014,15 +987,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "tryckeri"
+version = "0.1.0"
+dependencies = [
+ "tryckeri-hast",
+ "tryckeri-mdast",
+ "tryckeri-mdxjs",
+ "tryckeri-parser",
+]
+
+[[package]]
 name = "tryckeri-bench"
 version = "0.1.0"
 dependencies = [
  "divan",
- "mdxjs",
  "oxc_allocator",
- "parser",
  "rustc-hash",
  "tryckeri-hast",
+ "tryckeri-mdxjs",
+ "tryckeri-parser",
  "tryckeri-pulldown-cmark",
 ]
 
@@ -1030,9 +1013,9 @@ dependencies = [
 name = "tryckeri-hast"
 version = "0.1.0"
 dependencies = [
- "parser",
  "pulldown-cmark-escape",
  "tryckeri-mdast",
+ "tryckeri-parser",
 ]
 
 [[package]]
@@ -1045,16 +1028,43 @@ dependencies = [
 ]
 
 [[package]]
+name = "tryckeri-mdxjs"
+version = "0.1.0"
+dependencies = [
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_codegen",
+ "oxc_parser",
+ "oxc_span",
+ "oxc_syntax",
+ "pretty_assertions",
+ "rustc-hash",
+ "serde",
+ "tryckeri-hast",
+ "tryckeri-mdast",
+ "tryckeri-parser",
+]
+
+[[package]]
 name = "tryckeri-napi"
 version = "0.1.0"
 dependencies = [
- "mdxjs",
  "napi",
  "napi-build",
  "napi-derive",
- "parser",
  "tryckeri-hast",
  "tryckeri-mdast",
+ "tryckeri-mdxjs",
+ "tryckeri-parser",
+]
+
+[[package]]
+name = "tryckeri-parser"
+version = "0.1.0"
+dependencies = [
+ "tryckeri-hast",
+ "tryckeri-mdast",
+ "tryckeri-pulldown-cmark",
 ]
 
 [[package]]

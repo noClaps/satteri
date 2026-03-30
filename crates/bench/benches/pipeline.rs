@@ -31,16 +31,16 @@ fn main() {
 /// Parse Markdown source into an Arena.
 #[divan::bench]
 fn parse(bencher: divan::Bencher) {
-    let opts = parser::ParseOptions::default();
-    bencher.bench(|| parser::parse(MARKDOWN, &opts));
+    let opts = tryckeri_parser::ParseOptions::default();
+    bencher.bench(|| tryckeri_parser::parse(MARKDOWN, &opts));
 }
 
 /// Parse Markdown source and serialise to a flat binary buffer.
 #[divan::bench]
 fn parse_to_buffer(bencher: divan::Bencher) {
-    let opts = parser::ParseOptions::default();
+    let opts = tryckeri_parser::ParseOptions::default();
     bencher.bench(|| {
-        let (arena, _) = parser::parse(MARKDOWN, &opts);
+        let (arena, _) = tryckeri_parser::parse(MARKDOWN, &opts);
         arena.to_raw_buffer()
     });
 }
@@ -52,7 +52,7 @@ fn parse_to_buffer(bencher: divan::Bencher) {
 /// pulldown-cmark: parse to events (GFM + Math extensions).
 #[divan::bench]
 fn pulldown_parse_events(bencher: divan::Bencher) {
-    use pulldown_cmark::{Options, Parser};
+    use tryckeri_pulldown_cmark::{Options, Parser};
 
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
@@ -71,7 +71,7 @@ fn pulldown_parse_events(bencher: divan::Bencher) {
 /// pulldown-cmark: parse to events with MDX enabled.
 #[divan::bench]
 fn pulldown_parse_events_mdx(bencher: divan::Bencher) {
-    use pulldown_cmark::{Options, Parser};
+    use tryckeri_pulldown_cmark::{Options, Parser};
 
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
@@ -91,7 +91,7 @@ fn pulldown_parse_events_mdx(bencher: divan::Bencher) {
 /// pulldown-cmark: parse + render to HTML string.
 #[divan::bench]
 fn pulldown_to_html(bencher: divan::Bencher) {
-    use pulldown_cmark::{html, Options, Parser};
+    use tryckeri_pulldown_cmark::{html, Options, Parser};
 
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
@@ -110,7 +110,7 @@ fn pulldown_to_html(bencher: divan::Bencher) {
 /// pulldown-cmark MDX: parse the MDX snippet.
 #[divan::bench]
 fn pulldown_mdx_parse(bencher: divan::Bencher) {
-    use pulldown_cmark::{Options, Parser};
+    use tryckeri_pulldown_cmark::{Options, Parser};
 
     let opts = Options::ENABLE_TABLES | Options::ENABLE_MATH | Options::ENABLE_MDX;
 
@@ -129,9 +129,9 @@ fn pulldown_mdx_parse(bencher: divan::Bencher) {
 /// Full pipeline: Markdown source → Arena → HTML string.
 #[divan::bench]
 fn full_pipeline_to_html(bencher: divan::Bencher) {
-    let opts = parser::ParseOptions::default();
+    let opts = tryckeri_parser::ParseOptions::default();
     bencher.bench(|| {
-        let (arena, _) = parser::parse(MARKDOWN, &opts);
+        let (arena, _) = tryckeri_parser::parse(MARKDOWN, &opts);
         tryckeri_hast::mdast_to_html(&arena)
     });
 }
@@ -139,7 +139,7 @@ fn full_pipeline_to_html(bencher: divan::Bencher) {
 /// Given a pre-serialised MDAST buffer, convert to HAST buffer.
 #[divan::bench]
 fn mdast_buffer_to_hast_buffer(bencher: divan::Bencher) {
-    let (arena, _) = parser::parse(MARKDOWN, &parser::ParseOptions::default());
+    let (arena, _) = tryckeri_parser::parse(MARKDOWN, &tryckeri_parser::ParseOptions::default());
     let mdast_buf = arena.to_raw_buffer();
 
     bencher.bench(|| tryckeri_hast::mdast_to_hast_buffer(&mdast_buf).unwrap());
@@ -148,7 +148,7 @@ fn mdast_buffer_to_hast_buffer(bencher: divan::Bencher) {
 /// Given a pre-built HAST binary buffer, emit an HTML string.
 #[divan::bench]
 fn hast_buffer_to_html(bencher: divan::Bencher) {
-    let (arena, _) = parser::parse(MARKDOWN, &parser::ParseOptions::default());
+    let (arena, _) = tryckeri_parser::parse(MARKDOWN, &tryckeri_parser::ParseOptions::default());
     let mdast_buf = arena.to_raw_buffer();
     let hast_buf = tryckeri_hast::mdast_to_hast_buffer(&mdast_buf).unwrap();
 
@@ -162,16 +162,16 @@ fn hast_buffer_to_html(bencher: divan::Bencher) {
 /// Full pipeline: MDX source → JavaScript (parse + mdast→hast + hast→OXC + serialize).
 #[divan::bench]
 fn mdx_compile(bencher: divan::Bencher) {
-    bencher.bench(|| mdxjs::compile(MDX, &mdxjs::Options::default()).unwrap());
+    bencher.bench(|| tryckeri_mdxjs::compile(MDX, &tryckeri_mdxjs::Options::default()).unwrap());
 }
 
 /// Compile from a pre-parsed MDAST binary buffer — skips the parse step.
 #[divan::bench]
 fn mdx_compile_from_buffer(bencher: divan::Bencher) {
-    let (arena, _) = parser::parse(MDX, &parser::ParseOptions::mdx());
+    let (arena, _) = tryckeri_parser::parse(MDX, &tryckeri_parser::ParseOptions::mdx());
     let mdast_buf = arena.to_raw_buffer();
 
-    bencher.bench(|| mdxjs::compile_arena_bytes(&mdast_buf, &mdxjs::Options::default()).unwrap());
+    bencher.bench(|| tryckeri_mdxjs::compile_arena_bytes(&mdast_buf, &tryckeri_mdxjs::Options::default()).unwrap());
 }
 
 // ---- Step-by-step breakdown ----
@@ -179,14 +179,14 @@ fn mdx_compile_from_buffer(bencher: divan::Bencher) {
 /// Step 1 of MDX compile: parse MDX source into an Arena.
 #[divan::bench]
 fn mdx_step1_parse(bencher: divan::Bencher) {
-    let opts = parser::ParseOptions::mdx();
-    bencher.bench(|| parser::parse(MDX, &opts));
+    let opts = tryckeri_parser::ParseOptions::mdx();
+    bencher.bench(|| tryckeri_parser::parse(MDX, &opts));
 }
 
 /// Step 2 of MDX compile: MDAST binary → HAST binary.
 #[divan::bench]
 fn mdx_step2_mdast_to_hast(bencher: divan::Bencher) {
-    let (arena, _) = parser::parse(MDX, &parser::ParseOptions::mdx());
+    let (arena, _) = tryckeri_parser::parse(MDX, &tryckeri_parser::ParseOptions::mdx());
     let mdast_buf = arena.to_raw_buffer();
 
     bencher.bench(|| tryckeri_hast::mdast_to_hast_buffer(&mdast_buf).unwrap());
@@ -195,10 +195,10 @@ fn mdx_step2_mdast_to_hast(bencher: divan::Bencher) {
 /// Step 3 of MDX compile: HAST binary → OXC ES AST → JavaScript.
 #[divan::bench]
 fn mdx_step3_hast_to_js(bencher: divan::Bencher) {
-    let (arena, _) = parser::parse(MDX, &parser::ParseOptions::mdx());
+    let (arena, _) = tryckeri_parser::parse(MDX, &tryckeri_parser::ParseOptions::mdx());
     let mdast_buf = arena.to_raw_buffer();
     let hast_buf = tryckeri_hast::mdast_to_hast_buffer(&mdast_buf).unwrap();
-    let opts = mdxjs::Options::default();
+    let opts = tryckeri_mdxjs::Options::default();
 
-    bencher.bench(|| mdxjs::compile_hast_buffer(&hast_buf, &opts).unwrap());
+    bencher.bench(|| tryckeri_mdxjs::compile_hast_buffer(&hast_buf, &opts).unwrap());
 }

@@ -13,13 +13,13 @@ name = "profile_parse"
 path = "src/profile_parse.rs"
 
 [dependencies]
-parser = { path = "../parser" }
+tryckeri-parser = { path = "../tryckeri-parser" }
 
 [dev-dependencies]
 divan = "0.1"
-tryckeri-hast = { path = "../hast" }
-mdxjs = { path = "../mdxjs-rs" }
+tryckeri-hast = { path = "../tryckeri-hast" }
+tryckeri-mdxjs = { path = "../tryckeri-mdxjs-rs" }
 oxc_allocator = { workspace = true }
 rustc-hash = "2"
-pulldown-cmark = { path = "../pulldown-cmark", package = "tryckeri-pulldown-cmark" }
-parser = { path = "../parser" }
+tryckeri-pulldown-cmark = { path = "../tryckeri-pulldown-cmark" }
+tryckeri-parser = { path = "../tryckeri-parser" }

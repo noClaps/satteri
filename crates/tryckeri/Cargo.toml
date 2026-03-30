@@ -1,0 +1,11 @@
+[package]
+name = "tryckeri"
+version = "0.1.0"
+edition = "2021"
+description = "High-level Rust API for the Tryckeri markdown/MDX pipeline"
+
+[dependencies]
+tryckeri-mdast = { path = "../tryckeri-mdast" }
+tryckeri-hast = { path = "../tryckeri-hast" }
+tryckeri-mdxjs = { path = "../tryckeri-mdxjs-rs" }
+tryckeri-parser = { path = "../tryckeri-parser" }

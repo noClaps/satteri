@@ -1,13 +1,14 @@
 [workspace]
 members = [
-  "crates/mdast",
+  "crates/tryckeri-mdast",
   "crates/bench",
-  "crates/hast",
-  "crates/parser",
-  "crates/napi-binding",
-  "crates/plugin-api",
-  "crates/mdxjs-rs",
-  "crates/pulldown-cmark",
+  "crates/tryckeri-hast",
+  "crates/tryckeri-parser",
+  "crates/tryckeri-napi-binding",
+  "crates/tryckeri-plugin-api",
+  "crates/tryckeri-mdxjs-rs",
+  "crates/tryckeri-pulldown-cmark",
+  "crates/tryckeri",
 ]
 resolver = "2"
 

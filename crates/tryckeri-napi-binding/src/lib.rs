@@ -170,6 +170,74 @@ pub fn apply_mutations(arena_buf: Uint8Array, command_buf: Uint8Array) -> Result
     Ok(Uint8Array::new(new_arena.to_raw_buffer()))
 }
 
+/// Apply MDAST mutations and convert to HAST buffer in one step.
+#[napi]
+pub fn apply_mutations_and_convert_to_hast(
+    arena_buf: Uint8Array,
+    command_buf: Uint8Array,
+) -> Result<Uint8Array> {
+    let view = tryckeri_mdast::MdastArena::from_raw_buffer(&arena_buf)
+        .map_err(|e| napi::Error::from_reason(format!("invalid arena buffer: {e:?}")))?;
+
+    let parse_markdown = |source: &str| -> tryckeri_mdast::MdastArena {
+        let (parsed, _errors) =
+            tryckeri_parser::parse(source, &tryckeri_parser::ParseOptions::mdx());
+        parsed
+    };
+
+    let arena = tryckeri_mdast::apply_commands(view.to_arena(), &command_buf, &parse_markdown)
+        .map_err(|e| napi::Error::from_reason(format!("command error: {e}")))?;
+
+    Ok(Uint8Array::new(tryckeri_hast::mdast_arena_to_hast_buffer(&arena)))
+}
+
+/// Apply mutations and render to HTML in one step — no serialize→deserialize round-trip.
+#[napi]
+pub fn apply_mutations_and_render_html(
+    arena_buf: Uint8Array,
+    command_buf: Uint8Array,
+) -> Result<String> {
+    let view = tryckeri_mdast::MdastArena::from_raw_buffer(&arena_buf)
+        .map_err(|e| napi::Error::from_reason(format!("invalid arena buffer: {e:?}")))?;
+
+    let parse_markdown = |source: &str| -> tryckeri_mdast::MdastArena {
+        let (parsed, _errors) =
+            tryckeri_parser::parse(source, &tryckeri_parser::ParseOptions::mdx());
+        parsed
+    };
+
+    let arena = tryckeri_mdast::apply_commands(view.to_arena(), &command_buf, &parse_markdown)
+        .map_err(|e| napi::Error::from_reason(format!("command error: {e}")))?;
+
+    Ok(tryckeri_hast::hast_arena_to_html(&arena))
+}
+
+/// Apply mutations and compile to MDX JS in one step — no serialize→deserialize round-trip.
+#[napi]
+pub fn apply_mutations_and_compile_js(
+    arena_buf: Uint8Array,
+    command_buf: Uint8Array,
+    options: Option<JsMdxOptions>,
+) -> Result<String> {
+    let view = tryckeri_mdast::MdastArena::from_raw_buffer(&arena_buf)
+        .map_err(|e| napi::Error::from_reason(format!("invalid arena buffer: {e:?}")))?;
+
+    let parse_markdown = |source: &str| -> tryckeri_mdast::MdastArena {
+        let (parsed, _errors) =
+            tryckeri_parser::parse(source, &tryckeri_parser::ParseOptions::mdx());
+        parsed
+    };
+
+    let arena = tryckeri_mdast::apply_commands(view.to_arena(), &command_buf, &parse_markdown)
+        .map_err(|e| napi::Error::from_reason(format!("command error: {e}")))?;
+
+    // MDX compiler still needs the binary format — serialize once
+    let raw = arena.to_raw_buffer();
+    let opts = js_options_to_rust(options);
+    tryckeri_mdxjs::compile_hast_buffer(&raw, &opts)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
+}
+
 // ---------------------------------------------------------------------------
 // Buffer metadata
 // ---------------------------------------------------------------------------

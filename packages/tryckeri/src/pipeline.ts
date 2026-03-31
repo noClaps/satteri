@@ -30,6 +30,8 @@ export interface FileContext {
 
 export interface RunResult {
   buffer: ArrayBuffer | Uint8Array;
+  /** If set, the last plugin's mutations were deferred for fusion with the next step. */
+  pendingCommands: Uint8Array | null;
   dataMap: DataMap;
   diagnostics: MdastDiagnostic[];
   mutationCount: number;
@@ -42,7 +44,7 @@ export interface RunResult {
 export function runPluginsOnBuffer(
   buffer: ArrayBuffer | Uint8Array,
   pluginInstances: { instance: ReturnType<MdastPluginDefinition["createOnce"]>; name: string }[],
-  { filename = "<unknown>", dataMap }: { filename?: string; dataMap?: DataMap } = {},
+  { filename = "<unknown>", dataMap, deferLast = false }: { filename?: string; dataMap?: DataMap; deferLast?: boolean } = {},
 ): RunResult {
   const dm = dataMap ?? new DataMap();
   const allMdastDiagnostics: MdastDiagnostic[] = [];
@@ -50,7 +52,8 @@ export function runPluginsOnBuffer(
   let structuralMutations = 0;
   let currentBuffer = buffer;
 
-  for (const { instance, name: _name } of pluginInstances) {
+  for (let i = 0; i < pluginInstances.length; i++) {
+    const { instance } = pluginInstances[i]!;
     const reader = new MdastReader(currentBuffer);
 
     const fileContext: FileContext = {
@@ -69,7 +72,18 @@ export function runPluginsOnBuffer(
       totalMutations += 1;
       structuralMutations += 1;
 
-      // Send the binary command buffer to Rust for application
+      if (deferLast && i === pluginInstances.length - 1) {
+        // Last plugin — defer mutations for fusion with the next pipeline step
+        return {
+          buffer: currentBuffer,
+          pendingCommands: result.commandBuffer,
+          dataMap: dm,
+          diagnostics: allMdastDiagnostics,
+          mutationCount: totalMutations,
+          structuralMutationCount: structuralMutations,
+        };
+      }
+
       const arenaBuf =
         currentBuffer instanceof Uint8Array ? currentBuffer : new Uint8Array(currentBuffer);
       currentBuffer = applyMutations(arenaBuf, result.commandBuffer);
@@ -78,6 +92,7 @@ export function runPluginsOnBuffer(
 
   return {
     buffer: currentBuffer,
+    pendingCommands: null,
     dataMap: dm,
     diagnostics: allMdastDiagnostics,
     mutationCount: totalMutations,

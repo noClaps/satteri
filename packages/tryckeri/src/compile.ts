@@ -19,6 +19,9 @@ import {
   compileMdx,
   compileHastBufferToJs,
   applyMutations,
+  applyMutationsAndConvertToHast,
+  applyMutationsAndRenderHtml,
+  applyMutationsAndCompileJs,
 } from "../index.js";
 
 // ---------------------------------------------------------------------------
@@ -40,26 +43,41 @@ function extractBuffer(result: { buffer: ArrayBuffer | Uint8Array }): Uint8Array
   return result.buffer instanceof Uint8Array ? result.buffer : new Uint8Array(result.buffer);
 }
 
+
 // ---------------------------------------------------------------------------
 // HAST plugin runner
 // ---------------------------------------------------------------------------
 
-function runHastPlugins(hastBuf: Uint8Array, plugins: HastPluginDefinition[]): Uint8Array {
-  if (plugins.length === 0) return hastBuf;
+interface HastPipelineResult {
+  /** The buffer after all plugins (or all-but-last if pendingCommands is set). */
+  buffer: Uint8Array;
+  /** If the last plugin produced mutations, they're deferred here for fusion. */
+  pendingCommands: Uint8Array | null;
+}
+
+/**
+ * Run HAST plugins, deferring the last plugin's mutations so the caller can
+ * fuse applyMutations with the final render/compile step.
+ */
+function runHastPlugins(hastBuf: Uint8Array, plugins: HastPluginDefinition[]): HastPipelineResult {
+  if (plugins.length === 0) return { buffer: hastBuf, pendingCommands: null };
 
   const instances = initPlugins(plugins);
   let currentBuffer: Uint8Array = hastBuf;
 
-  for (const { instance } of instances) {
-    // Scope reader/dataMap so they don't pin the buffer after this iteration
-    const result = visitHast(new HastReader(currentBuffer), instance, new DataMap());
+  for (let i = 0; i < instances.length; i++) {
+    const result = visitHast(new HastReader(currentBuffer), instances[i]!.instance, new DataMap());
 
     if (result.hasMutations) {
+      if (i === instances.length - 1) {
+        // Last plugin — defer mutations for fusion
+        return { buffer: currentBuffer, pendingCommands: result.commandBuffer };
+      }
       currentBuffer = applyMutations(currentBuffer, result.commandBuffer);
     }
   }
 
-  return currentBuffer;
+  return { buffer: currentBuffer, pendingCommands: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -98,15 +116,28 @@ export function compileMarkdownToHtml(source: string, options: CompileOptions = 
 
   let mdastBuf: Uint8Array | null = parseToBuffer(source);
 
+  let hastBuf: Uint8Array;
   if (mdastPlugins.length > 0) {
     const instances = initPlugins(mdastPlugins);
-    mdastBuf = extractBuffer(runPluginsOnBuffer(mdastBuf, instances));
+    const mdastResult = runPluginsOnBuffer(mdastBuf, instances, { deferLast: true });
+    if (mdastResult.pendingCommands) {
+      hastBuf = applyMutationsAndConvertToHast(
+        extractBuffer(mdastResult),
+        mdastResult.pendingCommands,
+      );
+    } else {
+      hastBuf = mdastBufferToHastBuffer(extractBuffer(mdastResult));
+    }
+  } else {
+    hastBuf = mdastBufferToHastBuffer(mdastBuf);
   }
-
-  const hastBuf = mdastBufferToHastBuffer(mdastBuf);
   mdastBuf = null;
 
-  return hastBufferToHtmlStr(runHastPlugins(hastBuf, hastPlugins));
+  const { buffer, pendingCommands } = runHastPlugins(hastBuf, hastPlugins);
+  if (pendingCommands) {
+    return applyMutationsAndRenderHtml(buffer, pendingCommands);
+  }
+  return hastBufferToHtmlStr(buffer);
 }
 
 export function compileMdxToJs(source: string, options: CompileOptions = {}): string {
@@ -120,14 +151,27 @@ export function compileMdxToJs(source: string, options: CompileOptions = {}): st
 
   let mdastBuf: Uint8Array | null = parseMdxToBuffer(source);
 
+  let hastBuf: Uint8Array;
   if (mdastPlugins.length > 0) {
     const instances = initPlugins(mdastPlugins);
-    mdastBuf = extractBuffer(runPluginsOnBuffer(mdastBuf, instances));
+    const mdastResult = runPluginsOnBuffer(mdastBuf, instances, { deferLast: true });
+    if (mdastResult.pendingCommands) {
+      hastBuf = applyMutationsAndConvertToHast(
+        extractBuffer(mdastResult),
+        mdastResult.pendingCommands,
+      );
+    } else {
+      hastBuf = mdastBufferToHastBuffer(extractBuffer(mdastResult));
+    }
+  } else {
+    hastBuf = mdastBufferToHastBuffer(mdastBuf);
   }
-
-  const hastBuf = mdastBufferToHastBuffer(mdastBuf);
   mdastBuf = null;
 
   const mdxOptions = optimizeStatic ? { optimizeStatic } : undefined;
-  return compileHastBufferToJs(runHastPlugins(hastBuf, hastPlugins), mdxOptions);
+  const { buffer, pendingCommands } = runHastPlugins(hastBuf, hastPlugins);
+  if (pendingCommands) {
+    return applyMutationsAndCompileJs(buffer, pendingCommands, mdxOptions);
+  }
+  return compileHastBufferToJs(buffer, mdxOptions);
 }

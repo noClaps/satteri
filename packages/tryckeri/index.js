@@ -579,8 +579,11 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const { applyMutations, compileHastBufferToJs, compileMdx, compileMdxFromBuffer, getBufferFormat, hastBufferToHtmlStr, mdastBufferToHastBuffer, parseMdxToBuffer, parseMdxToHastBuffer, parseMdxToHtml, parseToBuffer, parseToHastBuffer, parseToHtml } = nativeBinding
+const { applyMutations, applyMutationsAndCompileJs, applyMutationsAndConvertToHast, applyMutationsAndRenderHtml, compileHastBufferToJs, compileMdx, compileMdxFromBuffer, getBufferFormat, hastBufferToHtmlStr, mdastBufferToHastBuffer, parseMdxToBuffer, parseMdxToHastBuffer, parseMdxToHtml, parseToBuffer, parseToHastBuffer, parseToHtml } = nativeBinding
 export { applyMutations }
+export { applyMutationsAndCompileJs }
+export { applyMutationsAndConvertToHast }
+export { applyMutationsAndRenderHtml }
 export { compileHastBufferToJs }
 export { compileMdx }
 export { compileMdxFromBuffer }

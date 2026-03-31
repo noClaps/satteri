@@ -5,7 +5,7 @@ use tryckeri_mdast::{
     decode_image_data, decode_link_data, decode_list_data, decode_list_item_data, decode_math_data,
     decode_mdx_jsx_attr, decode_mdx_jsx_attr_count, decode_mdx_jsx_element_name,
     decode_reference_data, decode_string_ref_data, BufferError, MdastArena, MdastBuilder,
-    MdastNodeType, MdastView, StringRef,
+    MdastNodeType, ReadMdast, StringRef,
 };
 
 use crate::codec::{encode_mdx_jsx_element_data, encode_text_data};
@@ -13,15 +13,15 @@ use crate::node_types::*;
 
 pub fn mdast_to_hast_buffer(mdast_buf: &[u8]) -> Result<Vec<u8>, BufferError> {
     let view = MdastArena::from_raw_buffer(mdast_buf)?;
+    Ok(mdast_arena_to_hast_buffer(&view))
+}
+
+/// Convert an MDAST arena directly to a HAST buffer (skips deserialize round-trip).
+pub fn mdast_arena_to_hast_buffer(source: &dyn ReadMdast) -> Vec<u8> {
     let mut builder = MdastBuilder::new(String::new());
-
-    // Pre-pass: collect definitions for link/image reference resolution.
-    let defs = collect_definitions(&view);
-
-    convert_node(0, &view, &mut builder, &defs);
-
-    let hast_arena = builder.finish();
-    Ok(hast_arena.to_raw_buffer())
+    let defs = collect_definitions(source);
+    convert_node(0, source, &mut builder, &defs);
+    builder.finish().to_raw_buffer()
 }
 
 struct Definition {
@@ -30,9 +30,9 @@ struct Definition {
     title: Option<String>,
 }
 
-fn collect_definitions(view: &MdastView) -> Vec<Definition> {
+fn collect_definitions(view: &dyn ReadMdast) -> Vec<Definition> {
     let mut defs = Vec::new();
-    for id in 0..view.node_count() {
+    for id in 0..view.len() as u32 {
         let node = view.get_node(id);
         if node.node_type == MdastNodeType::Definition as u8 {
             let data = view.get_type_data(id);
@@ -135,7 +135,7 @@ fn add_raw_node(builder: &mut MdastBuilder, html: &str) {
         .set_type_data(leaf_id, &encode_text_data(html_ref));
 }
 
-fn copy_position(node_id: u32, view: &MdastView, builder: &mut MdastBuilder) {
+fn copy_position(node_id: u32, view: &dyn ReadMdast, builder: &mut MdastBuilder) {
     let node = view.get_node(node_id);
     if node.start_line > 0 || node.start_offset > 0 {
         builder.set_position_current(
@@ -149,7 +149,7 @@ fn copy_position(node_id: u32, view: &MdastView, builder: &mut MdastBuilder) {
     }
 }
 
-fn convert_node(node_id: u32, view: &MdastView, builder: &mut MdastBuilder, defs: &[Definition]) {
+fn convert_node(node_id: u32, view: &dyn ReadMdast, builder: &mut MdastBuilder, defs: &[Definition]) {
     let node = view.get_node(node_id);
     let raw_type = node.node_type;
 
@@ -539,7 +539,7 @@ fn convert_node(node_id: u32, view: &MdastView, builder: &mut MdastBuilder, defs
 
 fn convert_children(
     node_id: u32,
-    view: &MdastView,
+    view: &dyn ReadMdast,
     builder: &mut MdastBuilder,
     defs: &[Definition],
 ) {
@@ -554,7 +554,7 @@ fn convert_children(
 /// the unraveled children into the parent with `\n` between them.
 fn convert_children_wrapped(
     node_id: u32,
-    view: &MdastView,
+    view: &dyn ReadMdast,
     builder: &mut MdastBuilder,
     defs: &[Definition],
 ) {
@@ -588,7 +588,7 @@ fn convert_children_wrapped(
 
 fn convert_table_row(
     row_id: u32,
-    view: &MdastView,
+    view: &dyn ReadMdast,
     builder: &mut MdastBuilder,
     defs: &[Definition],
     is_header: bool,
@@ -606,7 +606,7 @@ fn convert_table_row(
 
 /// Check if a paragraph contains only MDX nodes and/or whitespace text.
 /// If so, the paragraph should be "unraveled" (children output without `<p>`).
-fn is_mdx_only_paragraph(node_id: u32, view: &MdastView) -> bool {
+fn is_mdx_only_paragraph(node_id: u32, view: &dyn ReadMdast) -> bool {
     let children = view.get_children(node_id);
     if children.is_empty() {
         return false;
@@ -644,7 +644,7 @@ fn is_mdx_only_paragraph(node_id: u32, view: &MdastView) -> bool {
 
 fn convert_mdx_jsx_element(
     node_id: u32,
-    view: &MdastView,
+    view: &dyn ReadMdast,
     builder: &mut MdastBuilder,
     defs: &[Definition],
     hast_type: u8,
@@ -694,13 +694,13 @@ fn convert_mdx_jsx_element(
     builder.close_node();
 }
 
-fn extract_text_content(node_id: u32, view: &MdastView) -> String {
+fn extract_text_content(node_id: u32, view: &dyn ReadMdast) -> String {
     let mut out = String::new();
     extract_text_recursive(node_id, view, &mut out);
     out
 }
 
-fn extract_text_recursive(node_id: u32, view: &MdastView, out: &mut String) {
+fn extract_text_recursive(node_id: u32, view: &dyn ReadMdast, out: &mut String) {
     let node = view.get_node(node_id);
     if node.node_type == MdastNodeType::Text as u8 {
         let data = view.get_type_data(node_id);

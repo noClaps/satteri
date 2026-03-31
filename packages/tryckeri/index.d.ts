@@ -11,6 +11,15 @@
  */
 export declare function applyMutations(arenaBuf: Uint8Array, commandBuf: Uint8Array): Uint8Array
 
+/** Apply mutations and compile to MDX JS in one step — no serialize→deserialize round-trip. */
+export declare function applyMutationsAndCompileJs(arenaBuf: Uint8Array, commandBuf: Uint8Array, options?: JsMdxOptions | undefined | null): string
+
+/** Apply MDAST mutations and convert to HAST buffer in one step. */
+export declare function applyMutationsAndConvertToHast(arenaBuf: Uint8Array, commandBuf: Uint8Array): Uint8Array
+
+/** Apply mutations and render to HTML in one step — no serialize→deserialize round-trip. */
+export declare function applyMutationsAndRenderHtml(arenaBuf: Uint8Array, commandBuf: Uint8Array): string
+
 /** Return metadata about the MdastNode struct size and buffer format version. */
 export interface BufferFormat {
   nodeStructSize: number

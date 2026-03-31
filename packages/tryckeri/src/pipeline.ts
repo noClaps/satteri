@@ -72,8 +72,7 @@ export function runPluginsOnBuffer(
       // Send the binary command buffer to Rust for application
       const arenaBuf =
         currentBuffer instanceof Uint8Array ? currentBuffer : new Uint8Array(currentBuffer);
-      const newBuffer = applyMutations(arenaBuf, result.commandBuffer);
-      currentBuffer = newBuffer;
+      currentBuffer = applyMutations(arenaBuf, result.commandBuffer);
     }
   }
 

@@ -154,20 +154,18 @@ pub fn compile_hast_buffer_to_js(buf: Uint8Array, options: Option<JsMdxOptions>)
 /// Returns a new MDAST arena buffer with all mutations applied.
 #[napi]
 pub fn apply_mutations(arena_buf: Uint8Array, command_buf: Uint8Array) -> Result<Uint8Array> {
-    // Deserialize the arena from its binary buffer
     let view = tryckeri_mdast::MdastArena::from_raw_buffer(&arena_buf)
         .map_err(|e| napi::Error::from_reason(format!("invalid arena buffer: {e:?}")))?;
-    let arena = view.to_arena();
 
-    // Provide the real parser as the markdown parsing callback
     let parse_markdown = |source: &str| -> tryckeri_mdast::MdastArena {
         let (parsed, _errors) =
             tryckeri_parser::parse(source, &tryckeri_parser::ParseOptions::mdx());
         parsed
     };
 
-    let new_arena = tryckeri_mdast::apply_commands(&arena, &command_buf, &parse_markdown)
-        .map_err(|e| napi::Error::from_reason(format!("command error: {e}")))?;
+    let new_arena =
+        tryckeri_mdast::apply_commands(view.to_arena(), &command_buf, &parse_markdown)
+            .map_err(|e| napi::Error::from_reason(format!("command error: {e}")))?;
 
     Ok(Uint8Array::new(new_arena.to_raw_buffer()))
 }

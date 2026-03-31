@@ -9,16 +9,21 @@
 //!
 //! Commands (first byte):
 //!   0x01  REMOVE           [nodeId: u32]
-//!   0x02  SET_PROPERTY_INT [nodeId: u32][fieldId: u16][value: i64]
-//!   0x03  SET_PROPERTY_STR [nodeId: u32][fieldId: u16][len: u32][utf8...]
-//!   0x04  SET_PROPERTY_BOOL[nodeId: u32][fieldId: u16][value: u8]
 //!   0x05  INSERT_BEFORE    [nodeId: u32][payloadType: u8][payload...]
 //!   0x06  INSERT_AFTER     [nodeId: u32][payloadType: u8][payload...]
 //!   0x07  PREPEND_CHILD    [nodeId: u32][payloadType: u8][payload...]
 //!   0x08  APPEND_CHILD     [nodeId: u32][payloadType: u8][payload...]
 //!   0x09  WRAP             [nodeId: u32][payloadType: u8][payload...]
-//!   0x0A  SET_PROPERTY_NULL[nodeId: u32][fieldId: u16]
 //!   0x0B  REPLACE          [nodeId: u32][payloadType: u8][payload...]
+//!   0x0C  SET_PROPERTY     [nodeId: u32][valueType: u8][nameLen: u32][name...][valueLen: u32][value...]
+//!
+//! Value types for SET_PROPERTY:
+//!   0  STRING     — UTF-8 value
+//!   1  BOOL_TRUE  — no value bytes
+//!   2  BOOL_FALSE — no value bytes
+//!   3  SPACE_SEP  — space-separated list (UTF-8)
+//!   4  INT        — value is decimal string, parsed to i64
+//!   5  NULL       — no value bytes
 //!
 //! Payload types:
 //!   0x10  RAW_MARKDOWN     [len: u32][utf8...]
@@ -34,36 +39,44 @@ use serde::Deserialize;
 
 // Must match packages/tryckeri/src/command-buffer.ts
 pub const CMD_REMOVE: u8 = 0x01;
-pub const CMD_SET_INT: u8 = 0x02;
-pub const CMD_SET_STRING: u8 = 0x03;
-pub const CMD_SET_BOOL: u8 = 0x04;
 pub const CMD_INSERT_BEFORE: u8 = 0x05;
 pub const CMD_INSERT_AFTER: u8 = 0x06;
 pub const CMD_PREPEND_CHILD: u8 = 0x07;
 pub const CMD_APPEND_CHILD: u8 = 0x08;
 pub const CMD_WRAP: u8 = 0x09;
-pub const CMD_SET_NULL: u8 = 0x0A;
 pub const CMD_REPLACE: u8 = 0x0B;
+/// Unified set-property command for both MDAST and HAST nodes.
+/// Wire format: [nodeId: u32][valueType: u8][nameLen: u32][name...][valueLen: u32][value...]
+pub const CMD_SET_PROPERTY: u8 = 0x0C;
+
+// Value type constants for CMD_SET_PROPERTY (also used as HAST property kinds)
+pub const PROP_STRING: u8 = 0;
+pub const PROP_BOOL_TRUE: u8 = 1;
+pub const PROP_BOOL_FALSE: u8 = 2;
+pub const PROP_SPACE_SEP: u8 = 3;
+pub const PROP_INT: u8 = 4;
+pub const PROP_NULL: u8 = 5;
 
 pub const PAYLOAD_RAW_MARKDOWN: u8 = 0x10;
 pub const PAYLOAD_RAW_HTML: u8 = 0x11;
 pub const PAYLOAD_SERDE_JSON: u8 = 0x12;
 
-pub const FIELD_DEPTH: u16 = 0x0001;
-pub const FIELD_URL: u16 = 0x0010;
-pub const FIELD_TITLE: u16 = 0x0011;
-pub const FIELD_LANG: u16 = 0x0020;
-pub const FIELD_META: u16 = 0x0021;
-pub const FIELD_VALUE: u16 = 0x0022;
-pub const FIELD_ALT: u16 = 0x0030;
-pub const FIELD_ORDERED: u16 = 0x0040;
-pub const FIELD_START: u16 = 0x0041;
-pub const FIELD_SPREAD: u16 = 0x0042;
-pub const FIELD_CHECKED: u16 = 0x0050;
-pub const FIELD_IDENTIFIER: u16 = 0x0060;
-pub const FIELD_LABEL: u16 = 0x0061;
-pub const FIELD_REFERENCE_TYPE: u16 = 0x0062;
-pub const FIELD_NAME: u16 = 0x0070;
+// MDAST field IDs — internal to the set_string_ref / resolve_mdast_field dispatch
+const FIELD_DEPTH: u16 = 0x0001;
+const FIELD_URL: u16 = 0x0010;
+const FIELD_TITLE: u16 = 0x0011;
+const FIELD_LANG: u16 = 0x0020;
+const FIELD_META: u16 = 0x0021;
+const FIELD_VALUE: u16 = 0x0022;
+const FIELD_ALT: u16 = 0x0030;
+const FIELD_ORDERED: u16 = 0x0040;
+const FIELD_START: u16 = 0x0041;
+const FIELD_SPREAD: u16 = 0x0042;
+const FIELD_CHECKED: u16 = 0x0050;
+const FIELD_IDENTIFIER: u16 = 0x0060;
+const FIELD_LABEL: u16 = 0x0061;
+const FIELD_REFERENCE_TYPE: u16 = 0x0062;
+const FIELD_NAME: u16 = 0x0070;
 
 #[derive(Debug, Deserialize)]
 pub struct JsNode {
@@ -127,10 +140,6 @@ const HAST_MDX_JSX_TEXT_ELEMENT_TYPE: u8 = 11;
 const HAST_MDX_EXPRESSION_TYPE: u8 = 12;
 const HAST_MDX_ESM_TYPE: u8 = 13;
 
-const HAST_PROP_STRING: u8 = 0;
-const HAST_PROP_BOOL_TRUE: u8 = 1;
-const HAST_PROP_BOOL_FALSE: u8 = 2;
-const HAST_PROP_SPACE_SEP: u8 = 3;
 
 #[derive(Debug)]
 pub enum CommandError {
@@ -182,15 +191,6 @@ impl<'a> BufReader<'a> {
         Ok(v)
     }
 
-    fn read_u16(&mut self) -> Result<u16, CommandError> {
-        if self.remaining() < 2 {
-            return Err(CommandError::UnexpectedEof);
-        }
-        let v = u16::from_le_bytes([self.data[self.pos], self.data[self.pos + 1]]);
-        self.pos += 2;
-        Ok(v)
-    }
-
     fn read_u32(&mut self) -> Result<u32, CommandError> {
         if self.remaining() < 4 {
             return Err(CommandError::UnexpectedEof);
@@ -203,16 +203,6 @@ impl<'a> BufReader<'a> {
         ]);
         self.pos += 4;
         Ok(v)
-    }
-
-    fn read_i64(&mut self) -> Result<i64, CommandError> {
-        if self.remaining() < 8 {
-            return Err(CommandError::UnexpectedEof);
-        }
-        let mut bytes = [0u8; 8];
-        bytes.copy_from_slice(&self.data[self.pos..self.pos + 8]);
-        self.pos += 8;
-        Ok(i64::from_le_bytes(bytes))
     }
 
     fn read_bytes(&mut self, len: usize) -> Result<&'a [u8], CommandError> {
@@ -230,110 +220,136 @@ impl<'a> BufReader<'a> {
     }
 }
 
-/// String fields are allocated in the arena's source buffer with the StringRef
-/// updated; fixed-size fields are modified in-place.
-fn apply_set_int(
+/// Resolve an MDAST property name to its field ID for a given node type.
+fn resolve_mdast_field(node_type: u8, name: &str) -> Option<u16> {
+    match (node_type, name) {
+        (2, "depth") => Some(FIELD_DEPTH),
+        (15, "url") | (16, "url") | (9, "url") => Some(FIELD_URL),
+        (15, "title") | (16, "title") | (9, "title") => Some(FIELD_TITLE),
+        (8, "lang") => Some(FIELD_LANG),
+        (8, "meta") | (27, "meta") => Some(FIELD_META),
+        (10 | 13 | 7 | 25 | 26 | 28, "value")
+        | (8, "value")
+        | (27, "value")
+        | (102..=104, "value") => Some(FIELD_VALUE),
+        (16, "alt") => Some(FIELD_ALT),
+        (5, "ordered") => Some(FIELD_ORDERED),
+        (5, "start") => Some(FIELD_START),
+        (5 | 6, "spread") => Some(FIELD_SPREAD),
+        (6, "checked") => Some(FIELD_CHECKED),
+        (9 | 17 | 18 | 19 | 20, "identifier") => Some(FIELD_IDENTIFIER),
+        (9 | 17 | 18 | 19 | 20, "label") => Some(FIELD_LABEL),
+        (17 | 18 | 20, "referenceType") => Some(FIELD_REFERENCE_TYPE),
+        (100 | 101, "name") => Some(FIELD_NAME),
+        _ => None,
+    }
+}
+
+/// Unified set-property for both MDAST and HAST nodes.
+///
+/// For HAST elements: adds/updates a property in the element's property array.
+/// For MDAST nodes: resolves the property name to a field ID and modifies type_data.
+fn apply_set_property(
     arena: &mut MdastArena,
     node_id: u32,
+    prop_name: &str,
+    value_type: u8,
+    value_str: &str,
+) -> Result<(), CommandError> {
+    let node = arena.get_node(node_id);
+    let node_type = node.node_type;
+
+    // HAST element — use the property array path
+    if node_type == HAST_ELEMENT_TYPE {
+        return apply_hast_element_property(arena, node_id, prop_name, value_type, value_str);
+    }
+
+    // MDAST node — resolve name to field and apply
+    let field_id = resolve_mdast_field(node_type, prop_name)
+        .ok_or(CommandError::UnknownField(0))?;
+
+    match value_type {
+        PROP_STRING | PROP_SPACE_SEP => {
+            let sref = arena.alloc_string(value_str);
+            set_string_ref(arena, node_id, field_id, sref)
+        }
+        PROP_BOOL_TRUE => apply_mdast_bool(arena, node_id, node_type, field_id, true),
+        PROP_BOOL_FALSE => apply_mdast_bool(arena, node_id, node_type, field_id, false),
+        PROP_INT => {
+            let value: i64 = value_str.parse().unwrap_or(0);
+            apply_mdast_int(arena, node_id, node_type, field_id, value)
+        }
+        PROP_NULL => apply_mdast_null(arena, node_id, node_type, field_id),
+        _ => Err(CommandError::UnknownCommand(value_type)),
+    }
+}
+
+fn apply_mdast_int(
+    arena: &mut MdastArena,
+    node_id: u32,
+    node_type: u8,
     field_id: u16,
     value: i64,
 ) -> Result<(), CommandError> {
-    let node = arena.get_node(node_id);
-    let node_type = node.node_type;
-    let data_offset = node.data_offset as usize;
-    let data_len = node.data_len as usize;
-
+    let data_offset = arena.get_node(node_id).data_offset as usize;
+    let data_len = arena.get_node(node_id).data_len as usize;
     match (node_type, field_id) {
-        // Heading.depth (u8 at offset 0)
         (2, FIELD_DEPTH) => {
-            if data_len >= 1 {
-                arena.type_data[data_offset] = value as u8;
-            }
+            if data_len >= 1 { arena.type_data[data_offset] = value as u8; }
         }
-        // List.start (u32 at offset 0 in ListData)
         (5, FIELD_START) => {
             if data_len >= 4 {
-                let bytes = (value as u32).to_ne_bytes();
-                arena.type_data[data_offset..data_offset + 4].copy_from_slice(&bytes);
+                arena.type_data[data_offset..data_offset + 4]
+                    .copy_from_slice(&(value as u32).to_ne_bytes());
             }
         }
-        // ListItem.checked (u8 at offset 0 in ListItemData)
-        // 0=unchecked, 1=checked, 2=not a task item
         (6, FIELD_CHECKED) => {
-            if data_len >= 1 {
-                arena.type_data[data_offset] = value as u8;
-            }
+            if data_len >= 1 { arena.type_data[data_offset] = value as u8; }
         }
         _ => return Err(CommandError::UnknownField(field_id)),
     }
     Ok(())
 }
 
-fn apply_set_string(
+fn apply_mdast_bool(
     arena: &mut MdastArena,
     node_id: u32,
-    field_id: u16,
-    value: &str,
-) -> Result<(), CommandError> {
-    // Allocate the new string in the arena's source buffer
-    let sref = arena.alloc_string(value);
-    set_string_ref(arena, node_id, field_id, sref)
-}
-
-fn apply_set_bool(
-    arena: &mut MdastArena,
-    node_id: u32,
+    node_type: u8,
     field_id: u16,
     value: bool,
 ) -> Result<(), CommandError> {
-    let node = arena.get_node(node_id);
-    let node_type = node.node_type;
-    let data_offset = node.data_offset as usize;
-    let data_len = node.data_len as usize;
-
+    let data_offset = arena.get_node(node_id).data_offset as usize;
+    let data_len = arena.get_node(node_id).data_len as usize;
     match (node_type, field_id) {
-        // List.ordered (bool at offset 4 in ListData)
         (5, FIELD_ORDERED) => {
-            if data_len >= 5 {
-                arena.type_data[data_offset + 4] = value as u8;
-            }
+            if data_len >= 5 { arena.type_data[data_offset + 4] = value as u8; }
         }
-        // List.spread (bool at offset 5 in ListData)
         (5, FIELD_SPREAD) => {
-            if data_len >= 6 {
-                arena.type_data[data_offset + 5] = value as u8;
-            }
+            if data_len >= 6 { arena.type_data[data_offset + 5] = value as u8; }
         }
-        // ListItem.spread (bool at offset 1 in ListItemData)
         (6, FIELD_SPREAD) => {
-            if data_len >= 2 {
-                arena.type_data[data_offset + 1] = value as u8;
-            }
+            if data_len >= 2 { arena.type_data[data_offset + 1] = value as u8; }
         }
         _ => return Err(CommandError::UnknownField(field_id)),
     }
     Ok(())
 }
 
-fn apply_set_null(arena: &mut MdastArena, node_id: u32, field_id: u16) -> Result<(), CommandError> {
-    let node = arena.get_node(node_id);
-    let node_type = node.node_type;
-    let data_offset = node.data_offset as usize;
-    let data_len = node.data_len as usize;
-
+fn apply_mdast_null(
+    arena: &mut MdastArena,
+    node_id: u32,
+    node_type: u8,
+    field_id: u16,
+) -> Result<(), CommandError> {
     match (node_type, field_id) {
-        // ListItem.checked = null → set to 2 (not a task item)
         (6, FIELD_CHECKED) => {
-            if data_len >= 1 {
-                arena.type_data[data_offset] = 2;
-            }
+            let data_offset = arena.get_node(node_id).data_offset as usize;
+            let data_len = arena.get_node(node_id).data_len as usize;
+            if data_len >= 1 { arena.type_data[data_offset] = 2; }
+            Ok(())
         }
-        // String fields → set StringRef to empty
-        _ => {
-            set_string_ref(arena, node_id, field_id, StringRef::empty())?;
-        }
+        _ => set_string_ref(arena, node_id, field_id, StringRef::empty()),
     }
-    Ok(())
 }
 
 fn set_string_ref(
@@ -386,6 +402,82 @@ fn set_string_ref(
     let bytes_len = sref.len.to_ne_bytes();
     arena.type_data[abs_offset..abs_offset + 4].copy_from_slice(&bytes_offset);
     arena.type_data[abs_offset + 4..abs_offset + 8].copy_from_slice(&bytes_len);
+
+    Ok(())
+}
+
+/// Set or add a single property on a HAST element node.
+///
+/// If a property with `prop_name` already exists, its value is updated.
+/// If it doesn't exist, a new 20-byte property slot is appended.
+fn apply_hast_element_property(
+    arena: &mut MdastArena,
+    node_id: u32,
+    prop_name: &str,
+    value_type: u8,
+    value_str: &str,
+) -> Result<(), CommandError> {
+    let old_data = arena.get_type_data(node_id).to_vec();
+    if old_data.len() < 16 {
+        return Err(CommandError::UnexpectedEof);
+    }
+
+    let old_prop_count =
+        u32::from_le_bytes(old_data[8..12].try_into().unwrap()) as usize;
+
+    // Scan existing properties for a name match
+    let mut found_index: Option<usize> = None;
+    for i in 0..old_prop_count {
+        let base = 16 + i * 20;
+        let name_off = u32::from_le_bytes(old_data[base..base + 4].try_into().unwrap());
+        let name_len = u32::from_le_bytes(old_data[base + 4..base + 8].try_into().unwrap());
+        let existing_name = arena.get_str(StringRef::new(name_off, name_len));
+        if existing_name == prop_name {
+            found_index = Some(i);
+            break;
+        }
+    }
+
+    // Allocate new strings (appends to arena.source, so old offsets remain valid)
+    let name_ref = arena.alloc_string(prop_name);
+    let val_ref = if value_str.is_empty() {
+        StringRef::empty()
+    } else {
+        arena.alloc_string(value_str)
+    };
+
+    if let Some(idx) = found_index {
+        // Property exists — clone type_data, patch the slot
+        let mut new_data = old_data;
+        let base = 16 + idx * 20;
+        new_data[base..base + 4].copy_from_slice(&name_ref.offset.to_le_bytes());
+        new_data[base + 4..base + 8].copy_from_slice(&name_ref.len.to_le_bytes());
+        new_data[base + 8] = value_type;
+        new_data[base + 9..base + 12].copy_from_slice(&[0u8; 3]);
+        new_data[base + 12..base + 16].copy_from_slice(&val_ref.offset.to_le_bytes());
+        new_data[base + 16..base + 20].copy_from_slice(&val_ref.len.to_le_bytes());
+        arena.set_type_data(node_id, &new_data);
+    } else {
+        // Property doesn't exist — rebuild with prop_count+1
+        let new_prop_count = (old_prop_count + 1) as u32;
+        let mut new_data = Vec::with_capacity(16 + new_prop_count as usize * 20);
+        // Header: keep tag, update prop_count
+        new_data.extend_from_slice(&old_data[0..8]); // tag StringRef
+        new_data.extend_from_slice(&new_prop_count.to_le_bytes());
+        new_data.extend_from_slice(&0u32.to_le_bytes()); // pad
+        // Copy existing properties
+        if old_prop_count > 0 {
+            new_data.extend_from_slice(&old_data[16..16 + old_prop_count * 20]);
+        }
+        // Append new property
+        new_data.extend_from_slice(&name_ref.offset.to_le_bytes());
+        new_data.extend_from_slice(&name_ref.len.to_le_bytes());
+        new_data.push(value_type);
+        new_data.extend_from_slice(&[0u8; 3]); // pad
+        new_data.extend_from_slice(&val_ref.offset.to_le_bytes());
+        new_data.extend_from_slice(&val_ref.len.to_le_bytes());
+        arena.set_type_data(node_id, &new_data);
+    }
 
     Ok(())
 }
@@ -516,14 +608,14 @@ fn encode_hast_js_node_data(js_node: &JsNode, raw_type: u8, builder: &mut MdastB
                     let name_ref = builder.alloc_string(key);
                     match value {
                         serde_json::Value::Bool(true) => {
-                            props.push((name_ref, HAST_PROP_BOOL_TRUE, StringRef::empty()));
+                            props.push((name_ref, PROP_BOOL_TRUE, StringRef::empty()));
                         }
                         serde_json::Value::Bool(false) => {
-                            props.push((name_ref, HAST_PROP_BOOL_FALSE, StringRef::empty()));
+                            props.push((name_ref, PROP_BOOL_FALSE, StringRef::empty()));
                         }
                         serde_json::Value::String(s) => {
                             let val_ref = builder.alloc_string(s);
-                            props.push((name_ref, HAST_PROP_STRING, val_ref));
+                            props.push((name_ref, PROP_STRING, val_ref));
                         }
                         serde_json::Value::Array(arr) => {
                             // Space-separated list
@@ -533,7 +625,7 @@ fn encode_hast_js_node_data(js_node: &JsNode, raw_type: u8, builder: &mut MdastB
                                 .collect::<Vec<_>>()
                                 .join(" ");
                             let val_ref = builder.alloc_string(&joined);
-                            props.push((name_ref, HAST_PROP_SPACE_SEP, val_ref));
+                            props.push((name_ref, PROP_SPACE_SEP, val_ref));
                         }
                         _ => {} // skip null/number/object
                     }
@@ -802,18 +894,19 @@ fn read_payload(
 }
 
 /// The `parse_markdown` callback avoids a circular dependency on the `parser`
-/// crate. Set-property mutations are applied in-place on a cloned arena first;
+/// crate. Set-property mutations are applied in-place on the arena;
 /// structural mutations are collected as `Patch` objects and applied via `rebuild()`.
+///
+/// Takes ownership of the arena to avoid unnecessary cloning.
 pub fn apply_commands(
-    arena: &MdastArena,
+    mut arena: MdastArena,
     command_buf: &[u8],
     parse_markdown: &dyn Fn(&str) -> MdastArena,
 ) -> Result<MdastArena, CommandError> {
     if command_buf.is_empty() {
-        return Ok(arena.clone());
+        return Ok(arena);
     }
 
-    let mut arena = arena.clone();
     let mut patches: Vec<Patch> = Vec::new();
     let mut reader = BufReader::new(command_buf);
 
@@ -826,32 +919,14 @@ pub fn apply_commands(
                 patches.push(Patch::Remove { node_id });
             }
 
-            CMD_SET_INT => {
+            CMD_SET_PROPERTY => {
                 let node_id = reader.read_u32()?;
-                let field_id = reader.read_u16()?;
-                let value = reader.read_i64()?;
-                apply_set_int(&mut arena, node_id, field_id, value)?;
-            }
-
-            CMD_SET_STRING => {
-                let node_id = reader.read_u32()?;
-                let field_id = reader.read_u16()?;
-                let len = reader.read_u32()? as usize;
-                let value = reader.read_str(len)?;
-                apply_set_string(&mut arena, node_id, field_id, value)?;
-            }
-
-            CMD_SET_BOOL => {
-                let node_id = reader.read_u32()?;
-                let field_id = reader.read_u16()?;
-                let value = reader.read_u8()? != 0;
-                apply_set_bool(&mut arena, node_id, field_id, value)?;
-            }
-
-            CMD_SET_NULL => {
-                let node_id = reader.read_u32()?;
-                let field_id = reader.read_u16()?;
-                apply_set_null(&mut arena, node_id, field_id)?;
+                let value_type = reader.read_u8()?;
+                let name_len = reader.read_u32()? as usize;
+                let name = reader.read_str(name_len)?;
+                let value_len = reader.read_u32()? as usize;
+                let value = reader.read_str(value_len)?;
+                apply_set_property(&mut arena, node_id, name, value_type, value)?;
             }
 
             CMD_INSERT_BEFORE => {
@@ -931,12 +1006,15 @@ mod tests {
         buf.extend_from_slice(&v.to_le_bytes());
     }
 
-    fn push_u16(buf: &mut Vec<u8>, v: u16) {
-        buf.extend_from_slice(&v.to_le_bytes());
-    }
-
-    fn push_i64(buf: &mut Vec<u8>, v: i64) {
-        buf.extend_from_slice(&v.to_le_bytes());
+    /// Encode a CMD_SET_PROPERTY command into a buffer.
+    fn push_set_property(buf: &mut Vec<u8>, node_id: u32, value_type: u8, name: &str, value: &str) {
+        buf.push(CMD_SET_PROPERTY);
+        push_u32(buf, node_id);
+        buf.push(value_type);
+        push_u32(buf, name.len() as u32);
+        buf.extend_from_slice(name.as_bytes());
+        push_u32(buf, value.len() as u32);
+        buf.extend_from_slice(value.as_bytes());
     }
 
     fn build_hello_world() -> MdastArena {
@@ -977,7 +1055,7 @@ mod tests {
     #[test]
     fn empty_command_buffer() {
         let arena = build_hello_world();
-        let result = apply_commands(&arena, &[], &test_parse_markdown).unwrap();
+        let result = apply_commands(arena.clone(), &[], &test_parse_markdown).unwrap();
         assert_eq!(result.len(), arena.len());
     }
 
@@ -990,7 +1068,7 @@ mod tests {
         buf.push(CMD_REMOVE);
         push_u32(&mut buf, heading_id);
 
-        let result = apply_commands(&arena, &buf, &test_parse_markdown).unwrap();
+        let result = apply_commands(arena.clone(), &buf, &test_parse_markdown).unwrap();
         // Root should now have 1 child (paragraph only)
         assert_eq!(result.get_children(0).len(), 1);
         assert_eq!(
@@ -1000,37 +1078,29 @@ mod tests {
     }
 
     #[test]
-    fn set_int_heading_depth() {
+    fn set_property_heading_depth() {
         let arena = build_hello_world();
         let heading_id = arena.get_children(0)[0];
 
         let mut buf = Vec::new();
-        buf.push(CMD_SET_INT);
-        push_u32(&mut buf, heading_id);
-        push_u16(&mut buf, FIELD_DEPTH);
-        push_i64(&mut buf, 3);
+        push_set_property(&mut buf, heading_id, PROP_INT, "depth", "3");
 
-        let result = apply_commands(&arena, &buf, &test_parse_markdown).unwrap();
+        let result = apply_commands(arena.clone(), &buf, &test_parse_markdown).unwrap();
         let heading_data = result.get_type_data(heading_id);
         let heading = decode_heading_data(heading_data);
         assert_eq!(heading.depth, 3);
     }
 
     #[test]
-    fn set_string_text_value() {
+    fn set_property_text_value() {
         let arena = build_hello_world();
         let heading_id = arena.get_children(0)[0];
-        let text_id = arena.get_children(heading_id)[0]; // text node "Hello"
+        let text_id = arena.get_children(heading_id)[0];
 
-        let new_value = "Goodbye";
         let mut buf = Vec::new();
-        buf.push(CMD_SET_STRING);
-        push_u32(&mut buf, text_id);
-        push_u16(&mut buf, FIELD_VALUE);
-        push_u32(&mut buf, new_value.len() as u32);
-        buf.extend_from_slice(new_value.as_bytes());
+        push_set_property(&mut buf, text_id, PROP_STRING, "value", "Goodbye");
 
-        let result = apply_commands(&arena, &buf, &test_parse_markdown).unwrap();
+        let result = apply_commands(arena.clone(), &buf, &test_parse_markdown).unwrap();
         let text_data = result.get_type_data(text_id);
         let sref = decode_string_ref_data(text_data);
         assert_eq!(result.get_str(sref), "Goodbye");
@@ -1049,7 +1119,7 @@ mod tests {
         push_u32(&mut buf, raw_md.len() as u32);
         buf.extend_from_slice(raw_md.as_bytes());
 
-        let result = apply_commands(&arena, &buf, &test_parse_markdown).unwrap();
+        let result = apply_commands(arena.clone(), &buf, &test_parse_markdown).unwrap();
         let root_children = result.get_children(0);
         // The raw markdown "## New Heading" parses to a Root with one Heading child.
         // The Patch::Replace uses the whole parsed arena (rooted at Root).
@@ -1072,7 +1142,7 @@ mod tests {
         push_u32(&mut buf, json.len() as u32);
         buf.extend_from_slice(json.as_bytes());
 
-        let result = apply_commands(&arena, &buf, &test_parse_markdown).unwrap();
+        let result = apply_commands(arena.clone(), &buf, &test_parse_markdown).unwrap();
         let root_children = result.get_children(0);
         assert_eq!(root_children.len(), 2);
         let new_heading = root_children[0];
@@ -1091,22 +1161,10 @@ mod tests {
         let text_id = arena.get_children(heading_id)[0];
 
         let mut buf = Vec::new();
+        push_set_property(&mut buf, heading_id, PROP_INT, "depth", "3");
+        push_set_property(&mut buf, text_id, PROP_STRING, "value", "Hi");
 
-        // Set heading depth to 3
-        buf.push(CMD_SET_INT);
-        push_u32(&mut buf, heading_id);
-        push_u16(&mut buf, FIELD_DEPTH);
-        push_i64(&mut buf, 3);
-
-        // Set text value to "Hi"
-        let new_value = "Hi";
-        buf.push(CMD_SET_STRING);
-        push_u32(&mut buf, text_id);
-        push_u16(&mut buf, FIELD_VALUE);
-        push_u32(&mut buf, new_value.len() as u32);
-        buf.extend_from_slice(new_value.as_bytes());
-
-        let result = apply_commands(&arena, &buf, &test_parse_markdown).unwrap();
+        let result = apply_commands(arena.clone(), &buf, &test_parse_markdown).unwrap();
 
         let heading_data = result.get_type_data(heading_id);
         assert_eq!(decode_heading_data(heading_data).depth, 3);
@@ -1114,6 +1172,21 @@ mod tests {
         let text_data = result.get_type_data(text_id);
         let sref = decode_string_ref_data(text_data);
         assert_eq!(result.get_str(sref), "Hi");
+    }
+
+    #[test]
+    fn set_property_null() {
+        let arena = build_hello_world();
+        let heading_id = arena.get_children(0)[0];
+        let text_id = arena.get_children(heading_id)[0];
+
+        let mut buf = Vec::new();
+        push_set_property(&mut buf, text_id, PROP_NULL, "value", "");
+
+        let result = apply_commands(arena.clone(), &buf, &test_parse_markdown).unwrap();
+        let text_data = result.get_type_data(text_id);
+        let sref = decode_string_ref_data(text_data);
+        assert_eq!(sref.len, 0); // empty StringRef
     }
 
     #[test]
@@ -1220,5 +1293,118 @@ mod tests {
         // Attributes should be untouched
         assert!(escaped.contains(r#"class="shiki""#));
         assert!(escaped.contains(r#"style="color:#E1E4E8""#));
+    }
+
+    /// Build a minimal HAST element arena: root(type 0) → element(type 1, tag "div")
+    fn build_hast_element(props: &[(&str, u8, &str)]) -> MdastArena {
+        let mut b = MdastBuilder::new(String::new());
+        // Root node
+        b.open_node_raw(HAST_ROOT_TYPE);
+        // Element node
+        b.open_node_raw(HAST_ELEMENT_TYPE);
+        let tag_ref = b.alloc_string("div");
+        let prop_tuples: Vec<(StringRef, u8, StringRef)> = props
+            .iter()
+            .map(|(name, kind, value)| {
+                let n = b.alloc_string(name);
+                let v = if value.is_empty() {
+                    StringRef::empty()
+                } else {
+                    b.alloc_string(value)
+                };
+                (n, *kind, v)
+            })
+            .collect();
+        let mut type_data = Vec::with_capacity(16 + prop_tuples.len() * 20);
+        type_data.extend_from_slice(&tag_ref.offset.to_le_bytes());
+        type_data.extend_from_slice(&tag_ref.len.to_le_bytes());
+        type_data.extend_from_slice(&(prop_tuples.len() as u32).to_le_bytes());
+        type_data.extend_from_slice(&0u32.to_le_bytes());
+        for (n, kind, v) in &prop_tuples {
+            type_data.extend_from_slice(&n.offset.to_le_bytes());
+            type_data.extend_from_slice(&n.len.to_le_bytes());
+            type_data.push(*kind);
+            type_data.extend_from_slice(&[0u8; 3]);
+            type_data.extend_from_slice(&v.offset.to_le_bytes());
+            type_data.extend_from_slice(&v.len.to_le_bytes());
+        }
+        b.set_data_current(&type_data);
+        b.close_node(); // element
+        b.close_node(); // root
+        b.finish()
+    }
+
+    #[test]
+    fn hast_set_property_add_new() {
+        let arena = build_hast_element(&[]);
+        let element_id = arena.get_children(0)[0];
+
+        let mut buf = Vec::new();
+        push_set_property(&mut buf, element_id, PROP_STRING, "class", "test");
+
+        let result = apply_commands(arena.clone(), &buf, &test_parse_markdown).unwrap();
+        let data = result.get_type_data(element_id);
+        let prop_count = u32::from_le_bytes(data[8..12].try_into().unwrap());
+        assert_eq!(prop_count, 1);
+        let name_ref = StringRef::new(
+            u32::from_le_bytes(data[16..20].try_into().unwrap()),
+            u32::from_le_bytes(data[20..24].try_into().unwrap()),
+        );
+        assert_eq!(result.get_str(name_ref), "class");
+        let val_ref = StringRef::new(
+            u32::from_le_bytes(data[28..32].try_into().unwrap()),
+            u32::from_le_bytes(data[32..36].try_into().unwrap()),
+        );
+        assert_eq!(result.get_str(val_ref), "test");
+        assert_eq!(data[24], PROP_STRING);
+    }
+
+    #[test]
+    fn hast_set_property_overwrite_existing() {
+        let arena = build_hast_element(&[("class", PROP_STRING, "old")]);
+        let element_id = arena.get_children(0)[0];
+
+        let mut buf = Vec::new();
+        push_set_property(&mut buf, element_id, PROP_STRING, "class", "new-value");
+
+        let result = apply_commands(arena.clone(), &buf, &test_parse_markdown).unwrap();
+        let data = result.get_type_data(element_id);
+        let prop_count = u32::from_le_bytes(data[8..12].try_into().unwrap());
+        assert_eq!(prop_count, 1);
+        let val_ref = StringRef::new(
+            u32::from_le_bytes(data[28..32].try_into().unwrap()),
+            u32::from_le_bytes(data[32..36].try_into().unwrap()),
+        );
+        assert_eq!(result.get_str(val_ref), "new-value");
+    }
+
+    #[test]
+    fn hast_set_property_bool_true() {
+        let arena = build_hast_element(&[]);
+        let element_id = arena.get_children(0)[0];
+
+        let mut buf = Vec::new();
+        push_set_property(&mut buf, element_id, PROP_BOOL_TRUE, "disabled", "");
+
+        let result = apply_commands(arena.clone(), &buf, &test_parse_markdown).unwrap();
+        let data = result.get_type_data(element_id);
+        let prop_count = u32::from_le_bytes(data[8..12].try_into().unwrap());
+        assert_eq!(prop_count, 1);
+        assert_eq!(data[24], PROP_BOOL_TRUE);
+    }
+
+    #[test]
+    fn hast_set_property_multiple_on_same_node() {
+        let arena = build_hast_element(&[]);
+        let element_id = arena.get_children(0)[0];
+
+        let mut buf = Vec::new();
+        push_set_property(&mut buf, element_id, PROP_STRING, "class", "foo");
+        push_set_property(&mut buf, element_id, PROP_STRING, "id", "bar");
+
+        let result = apply_commands(arena.clone(), &buf, &test_parse_markdown).unwrap();
+        let data = result.get_type_data(element_id);
+        let prop_count = u32::from_le_bytes(data[8..12].try_into().unwrap());
+        assert_eq!(prop_count, 2);
     }
 }

@@ -154,6 +154,19 @@ export class HastReader {
     return ids;
   }
 
+  /** Push child node IDs directly onto a stack array (reverse order for depth-first). */
+  pushChildIds(nodeId: number, stack: number[]): void {
+    const base = this.#header.nodesOffset + nodeId * this.#header.nodeStructSize;
+    const v = this.#view;
+    const childrenStart = v.getUint32(base + FIELD.children_start, true);
+    const childrenCount = v.getUint32(base + FIELD.children_count, true);
+    if (childrenCount === 0) return;
+    const { childrenOffset } = this.#header;
+    for (let i = childrenCount - 1; i >= 0; i--) {
+      stack.push(v.getUint32(childrenOffset + (childrenStart + i) * 4, true));
+    }
+  }
+
   /** Get the raw type_data bytes for a node. */
   getTypeData(nodeId: number): Uint8Array {
     const base = this.#header.nodesOffset + nodeId * this.#header.nodeStructSize;

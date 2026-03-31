@@ -35,6 +35,11 @@ function initPlugins<T>(
   }));
 }
 
+/** Extract just the buffer from a RunResult, discarding dataMap/diagnostics references. */
+function extractBuffer(result: { buffer: ArrayBuffer | Uint8Array }): Uint8Array {
+  return result.buffer instanceof Uint8Array ? result.buffer : new Uint8Array(result.buffer);
+}
+
 // ---------------------------------------------------------------------------
 // HAST plugin runner
 // ---------------------------------------------------------------------------
@@ -46,9 +51,8 @@ function runHastPlugins(hastBuf: Uint8Array, plugins: HastPluginDefinition[]): U
   let currentBuffer: Uint8Array = hastBuf;
 
   for (const { instance } of instances) {
-    const reader = new HastReader(currentBuffer);
-    const dataMap = new DataMap();
-    const result = visitHast(reader, instance, dataMap);
+    // Scope reader/dataMap so they don't pin the buffer after this iteration
+    const result = visitHast(new HastReader(currentBuffer), instance, new DataMap());
 
     if (result.hasMutations) {
       currentBuffer = applyMutations(currentBuffer, result.commandBuffer);
@@ -92,18 +96,17 @@ export function compileMarkdownToHtml(source: string, options: CompileOptions = 
     return parseToHtml(source);
   }
 
-  let mdastBuf: Uint8Array = parseToBuffer(source);
+  let mdastBuf: Uint8Array | null = parseToBuffer(source);
 
   if (mdastPlugins.length > 0) {
     const instances = initPlugins(mdastPlugins);
-    const result = runPluginsOnBuffer(mdastBuf, instances);
-    mdastBuf = result.buffer instanceof Uint8Array ? result.buffer : new Uint8Array(result.buffer);
+    mdastBuf = extractBuffer(runPluginsOnBuffer(mdastBuf, instances));
   }
 
-  let hastBuf = mdastBufferToHastBuffer(mdastBuf);
-  hastBuf = runHastPlugins(hastBuf, hastPlugins);
+  const hastBuf = mdastBufferToHastBuffer(mdastBuf);
+  mdastBuf = null;
 
-  return hastBufferToHtmlStr(hastBuf);
+  return hastBufferToHtmlStr(runHastPlugins(hastBuf, hastPlugins));
 }
 
 export function compileMdxToJs(source: string, options: CompileOptions = {}): string {
@@ -115,18 +118,16 @@ export function compileMdxToJs(source: string, options: CompileOptions = {}): st
     return compileMdx(source, mdxOptions);
   }
 
-  let mdastBuf: Uint8Array = parseMdxToBuffer(source);
+  let mdastBuf: Uint8Array | null = parseMdxToBuffer(source);
 
   if (mdastPlugins.length > 0) {
     const instances = initPlugins(mdastPlugins);
-    const result = runPluginsOnBuffer(mdastBuf, instances);
-    mdastBuf = result.buffer instanceof Uint8Array ? result.buffer : new Uint8Array(result.buffer);
+    mdastBuf = extractBuffer(runPluginsOnBuffer(mdastBuf, instances));
   }
 
-  let hastBuf = mdastBufferToHastBuffer(mdastBuf);
-  hastBuf = runHastPlugins(hastBuf, hastPlugins);
+  const hastBuf = mdastBufferToHastBuffer(mdastBuf);
+  mdastBuf = null;
 
   const mdxOptions = optimizeStatic ? { optimizeStatic } : undefined;
-
-  return compileHastBufferToJs(hastBuf, mdxOptions);
+  return compileHastBufferToJs(runHastPlugins(hastBuf, hastPlugins), mdxOptions);
 }

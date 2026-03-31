@@ -63,6 +63,46 @@ function lazyProp<T>(key: string, get: () => T): PropertyDescriptor {
 }
 
 /**
+ * First access to any field in the group resolves all fields from one reader call.
+ * All fields share a single getter — whichever is accessed first triggers the read,
+ * then all fields are defined as own properties (shadowing the getters).
+ */
+/**
+ * First access to any field in the group resolves all fields from one reader call.
+ * Uses a shared resolve-once pattern: the first getter to fire reads all data,
+ * defines own properties for every key, then each per-key getter returns its value.
+ */
+function lazyGroup(
+  node: MdastNode,
+  keys: string[],
+  resolve: () => Record<string, unknown>,
+): void {
+  let cached: Record<string, unknown> | undefined;
+  const ensureResolved = () => {
+    if (cached) return cached;
+    cached = resolve();
+    for (const k of keys) {
+      Object.defineProperty(node, k, {
+        value: cached[k],
+        writable: true,
+        configurable: true,
+        enumerable: true,
+      });
+    }
+    return cached;
+  };
+  for (const key of keys) {
+    Object.defineProperty(node, key, {
+      get() {
+        return ensureResolved()[key];
+      },
+      configurable: true,
+      enumerable: true,
+    });
+  }
+}
+
+/**
  * Add type-specific lazy properties to a node object.
  */
 function addTypeProperties(
@@ -90,83 +130,50 @@ function addTypeProperties(
       break;
 
     case 8: // code
-      Object.defineProperties(node, {
-        lang: lazyProp("lang", () => reader.getCodeData(nodeId).lang),
-        meta: lazyProp("meta", () => reader.getCodeData(nodeId).meta),
-        value: lazyProp("value", () => reader.getCodeData(nodeId).value),
-      });
+      lazyGroup(node, ["lang", "meta", "value"], () => reader.getCodeData(nodeId));
       break;
 
     case 27: // math
-      Object.defineProperties(node, {
-        meta: lazyProp("meta", () => reader.getMathData(nodeId).meta),
-        value: lazyProp("value", () => reader.getMathData(nodeId).value),
-      });
+      lazyGroup(node, ["meta", "value"], () => reader.getMathData(nodeId));
       break;
 
     case 15: // link
-      Object.defineProperties(node, {
-        url: lazyProp("url", () => reader.getLinkData(nodeId).url),
-        title: lazyProp("title", () => reader.getLinkData(nodeId).title),
-      });
+      lazyGroup(node, ["url", "title"], () => reader.getLinkData(nodeId));
       break;
 
     case 9: // definition
-      Object.defineProperties(node, {
-        url: lazyProp("url", () => reader.getDefinitionData(nodeId).url),
-        title: lazyProp("title", () => reader.getDefinitionData(nodeId).title),
-        identifier: lazyProp("identifier", () => reader.getDefinitionData(nodeId).identifier),
-        label: lazyProp("label", () => reader.getDefinitionData(nodeId).label),
-      });
+      lazyGroup(node, ["url", "title", "identifier", "label"], () =>
+        reader.getDefinitionData(nodeId),
+      );
       break;
 
     case 16: // image
-      Object.defineProperties(node, {
-        url: lazyProp("url", () => reader.getImageData(nodeId).url),
-        alt: lazyProp("alt", () => reader.getImageData(nodeId).alt),
-        title: lazyProp("title", () => reader.getImageData(nodeId).title),
-      });
+      lazyGroup(node, ["url", "alt", "title"], () => reader.getImageData(nodeId));
       break;
 
-    case 5: // list
-      Object.defineProperties(node, {
-        ordered: lazyProp("ordered", () => reader.getListData(nodeId).ordered),
-        start: lazyProp("start", () => {
-          const d = reader.getListData(nodeId);
-          return d.ordered ? d.start : null;
-        }),
-        spread: lazyProp("spread", () => reader.getListData(nodeId).spread),
-      });
+    case 5: { // list
+      const resolveList = () => {
+        const d = reader.getListData(nodeId);
+        return { ordered: d.ordered, start: d.ordered ? d.start : null, spread: d.spread };
+      };
+      lazyGroup(node, ["ordered", "start", "spread"], resolveList);
       break;
+    }
 
     case 6: // listItem
-      Object.defineProperties(node, {
-        checked: lazyProp("checked", () => reader.getListItemData(nodeId).checked),
-        spread: lazyProp("spread", () => reader.getListItemData(nodeId).spread),
-      });
+      lazyGroup(node, ["checked", "spread"], () => reader.getListItemData(nodeId));
       break;
 
     case 17: // linkReference
     case 18: // imageReference
     case 20: // footnoteReference
-      Object.defineProperties(node, {
-        identifier: lazyProp("identifier", () => reader.getReferenceData(nodeId).identifier),
-        label: lazyProp("label", () => reader.getReferenceData(nodeId).label),
-        referenceType: lazyProp(
-          "referenceType",
-          () => reader.getReferenceData(nodeId).referenceType,
-        ),
-      });
+      lazyGroup(node, ["identifier", "label", "referenceType"], () =>
+        reader.getReferenceData(nodeId),
+      );
       break;
 
     case 19: // footnoteDefinition
-      Object.defineProperties(node, {
-        identifier: lazyProp(
-          "identifier",
-          () => reader.getFootnoteDefinitionData(nodeId).identifier,
-        ),
-        label: lazyProp("label", () => reader.getFootnoteDefinitionData(nodeId).label),
-      });
+      lazyGroup(node, ["identifier", "label"], () => reader.getFootnoteDefinitionData(nodeId));
       break;
 
     case 21: // table
@@ -177,10 +184,7 @@ function addTypeProperties(
 
     case 100: // mdxJsxFlowElement
     case 101: // mdxJsxTextElement
-      Object.defineProperties(node, {
-        name: lazyProp("name", () => reader.getMdxJsxElementData(nodeId).name),
-        attributes: lazyProp("attributes", () => reader.getMdxJsxElementData(nodeId).attributes),
-      });
+      lazyGroup(node, ["name", "attributes"], () => reader.getMdxJsxElementData(nodeId));
       break;
 
     case 102: // mdxFlowExpression

@@ -62,23 +62,19 @@ class HastVisitorContextImpl implements HastVisitorContext {
   }
 
   setProperty(node: HastNode, key: string, value: unknown): void {
-    // Use pending state if we've already modified this node in this visitor pass
-    const current = this.#pendingNodes.get(node._nodeId) ?? node;
-    // Force lazy getters to materialize before spreading (class-based nodes
-    // have lazy getters on the prototype that spread doesn't trigger)
-    if (current.type === "element") {
-      void current.tagName;
-      void current.properties;
-      void current.children;
+    if (node.type === "element") {
+      // Fast binary path — no materialization, no JSON serialization
+      this.#commandBuffer.setProperty(node._nodeId, key, value);
+      return;
     }
-    const updated: Record<string, unknown> = { ...current };
-    if (current.type === "mdxJsxFlowElement" || current.type === "mdxJsxTextElement") {
-      // MDX JSX nodes use `attributes`, not `properties`
+
+    if (node.type === "mdxJsxFlowElement" || node.type === "mdxJsxTextElement") {
+      // MDX JSX nodes use `attributes`, not `properties` — keep replaceNode path
+      const current = this.#pendingNodes.get(node._nodeId) ?? node;
+      const updated: Record<string, unknown> = { ...current };
       const attrs = [...((updated.attributes as MdxJsxAttributeUnion[] | undefined) ?? [])];
-      // Remove existing attribute with same name, if any
       const idx = attrs.findIndex((a) => a.type === "mdxJsxAttribute" && a.name === key);
       if (idx !== -1) attrs.splice(idx, 1);
-      // Add new attribute
       const attrValue =
         value === true || value === null || value === undefined
           ? null
@@ -87,11 +83,15 @@ class HastVisitorContextImpl implements HastVisitorContext {
             : `${value as string | number | boolean}`;
       attrs.push({ type: "mdxJsxAttribute", name: key, value: attrValue });
       updated.attributes = attrs;
-    } else {
-      // Regular HAST elements use `properties`
-      const props = (updated.properties ?? {}) as Record<string, string | boolean | string[]>;
-      updated.properties = { ...props, [key]: value as string | boolean | string[] };
+      this.replaceNode(node, updated as unknown as HastNode);
+      return;
     }
+
+    // Fallback for other node types
+    const current = this.#pendingNodes.get(node._nodeId) ?? node;
+    const updated: Record<string, unknown> = { ...current };
+    const props = (updated.properties ?? {}) as Record<string, string | boolean | string[]>;
+    updated.properties = { ...props, [key]: value as string | boolean | string[] };
     this.replaceNode(node, updated as unknown as HastNode);
   }
 
@@ -170,17 +170,28 @@ class LazyElementNode {
   }
 }
 
+// Helper: resolve element data once and cache both tagName and properties.
+function resolveElementData(self: LazyElementNode): void {
+  const { tagName, properties } = self._reader.getElementData(self._nodeId);
+  Object.defineProperty(self, "tagName", {
+    value: tagName,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+  Object.defineProperty(self, "properties", {
+    value: propsToRecord(properties),
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+}
+
 // Define lazy getters on prototype — one-time cost at module load
 Object.defineProperty(LazyElementNode.prototype, "tagName", {
   get(this: LazyElementNode) {
-    const val = this._reader.getElementData(this._nodeId).tagName;
-    Object.defineProperty(this, "tagName", {
-      value: val,
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    });
-    return val;
+    resolveElementData(this);
+    return this.tagName;
   },
   configurable: true,
   enumerable: true,
@@ -188,14 +199,8 @@ Object.defineProperty(LazyElementNode.prototype, "tagName", {
 
 Object.defineProperty(LazyElementNode.prototype, "properties", {
   get(this: LazyElementNode) {
-    const val = propsToRecord(this._reader.getElementData(this._nodeId).properties);
-    Object.defineProperty(this, "properties", {
-      value: val,
-      writable: true,
-      enumerable: true,
-      configurable: true,
-    });
-    return val;
+    resolveElementData(this);
+    return this.properties;
   },
   configurable: true,
   enumerable: true,
@@ -270,6 +275,15 @@ Object.defineProperty(LazyTextNode.prototype, "data", {
   enumerable: true,
 });
 
+// Type name lookup for text-like nodes (hoisted to avoid per-node allocation)
+const TEXT_TYPE_NAMES: Record<number, string> = {
+  [HAST_TEXT]: "text",
+  [HAST_COMMENT]: "comment",
+  [HAST_RAW]: "raw",
+  [HAST_MDX_EXPRESSION]: "mdxExpression",
+  [HAST_MDX_ESM]: "mdxjsEsm",
+};
+
 /** Fast materializer for the visitor — avoids per-node Object.defineProperty overhead. */
 function materializeForVisitor(
   nodeType: number,
@@ -284,16 +298,8 @@ function materializeForVisitor(
     case HAST_COMMENT:
     case HAST_RAW:
     case HAST_MDX_EXPRESSION:
-    case HAST_MDX_ESM: {
-      const typeNames: Record<number, string> = {
-        [HAST_TEXT]: "text",
-        [HAST_COMMENT]: "comment",
-        [HAST_RAW]: "raw",
-        [HAST_MDX_EXPRESSION]: "mdxExpression",
-        [HAST_MDX_ESM]: "mdxjsEsm",
-      };
-      return new LazyTextNode(typeNames[nodeType]!, nodeId, reader, dataMap) as unknown as HastNode;
-    }
+    case HAST_MDX_ESM:
+      return new LazyTextNode(TEXT_TYPE_NAMES[nodeType]!, nodeId, reader, dataMap) as unknown as HastNode;
     default:
       // For root, mdxJsx*, doctype — fall back to full materializer
       return materializeHastNode(reader, nodeId, dataMap);
@@ -359,17 +365,15 @@ export function visitHast(
         }
       }
 
-      const childIds = reader.getChildIds(nodeId);
-      for (let i = childIds.length - 1; i >= 0; i--) {
-        stack.push(childIds[i]!);
-      }
+      reader.pushChildIds(nodeId, stack);
     }
   }
 
   plugin.after?.(ctx);
 
   // Merge: return-value commands first, then context commands
-  const ctxBuf = ctx.getCommandBuffer().getBuffer();
+  const ctxCmdBuf = ctx.getCommandBuffer();
+  const ctxBuf = ctxCmdBuf.getBuffer();
   const retBuf = returnBuffer.getBuffer();
   const totalLen = retBuf.length + ctxBuf.length;
 
@@ -381,6 +385,10 @@ export function visitHast(
     merged.set(retBuf, 0);
     merged.set(ctxBuf, retBuf.length);
   }
+
+  // Release internal ArrayBuffers now that we've copied into merged
+  returnBuffer.reset();
+  ctxCmdBuf.reset();
 
   return {
     commandBuffer: merged,

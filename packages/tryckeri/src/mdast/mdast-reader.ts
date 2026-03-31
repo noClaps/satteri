@@ -218,6 +218,19 @@ export class MdastReader {
     return ids;
   }
 
+  /** Push child node IDs directly onto a stack array (reverse order for depth-first). */
+  pushChildIds(nodeId: number, stack: number[]): void {
+    const { nodesOffset, nodeStructSize, childrenOffset } = this.#header;
+    const base = nodesOffset + nodeId * nodeStructSize;
+    const v = this.#view;
+    const childrenStart = v.getUint32(base + FIELD.children_start, true);
+    const childrenCount = v.getUint32(base + FIELD.children_count, true);
+    if (childrenCount === 0) return;
+    for (let i = childrenCount - 1; i >= 0; i--) {
+      stack.push(v.getUint32(childrenOffset + (childrenStart + i) * 4, true));
+    }
+  }
+
   getTypeData(nodeId: number): Uint8Array {
     const node = this.getNode(nodeId);
     if (node.dataLen === 0) return new Uint8Array(0);

@@ -110,7 +110,7 @@ export class MdastVisitorContext {
   }
 
   setProperty(node: MdastNode, key: string, value: unknown): void {
-    this.#commandBuffer.setProperty(node.type, node._nodeId, key, value);
+    this.#commandBuffer.setProperty(node._nodeId, key, value);
   }
 
   report({
@@ -250,17 +250,15 @@ export function visitMdast(
         }
       }
 
-      const childIds = reader.getChildIds(nodeId);
-      for (let i = childIds.length - 1; i >= 0; i--) {
-        stack.push(childIds[i]!);
-      }
+      reader.pushChildIds(nodeId, stack);
     }
   }
 
   plugin.after?.(context);
 
   // Merge: return-value commands first, then context commands
-  const ctxBuf = context.getCommandBuffer().getBuffer();
+  const ctxCmdBuf = context.getCommandBuffer();
+  const ctxBuf = ctxCmdBuf.getBuffer();
   const retBuf = returnBuffer.getBuffer();
   const totalLen = retBuf.length + ctxBuf.length;
 
@@ -272,6 +270,10 @@ export function visitMdast(
     merged.set(retBuf, 0);
     merged.set(ctxBuf, retBuf.length);
   }
+
+  // Release internal ArrayBuffers now that we've copied into merged
+  returnBuffer.reset();
+  ctxCmdBuf.reset();
 
   return {
     commandBuffer: merged,

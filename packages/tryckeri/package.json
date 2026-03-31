@@ -1,6 +1,6 @@
 {
   "name": "tryckeri",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "High-performance Markdown processing",
   "files": [
     "dist",
@@ -24,7 +24,6 @@
     "build:native:debug": "napi build --manifest-path ../../crates/tryckeri-napi-binding/Cargo.toml --output-dir . --platform --esm",
     "build:ts": "tsc --project tsconfig.build.json",
     "build": "pnpm build:native && pnpm build:ts",
-    "prepublishOnly": "napi prepublish --skip-gh-release",
     "artifacts": "napi create-npm-dirs && napi artifacts && napi version",
     "dev": "tsc --watch",
     "vitest": "vitest",

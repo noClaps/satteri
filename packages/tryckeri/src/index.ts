@@ -2,7 +2,7 @@ export { MdastReader, NodeType, NodeTypeName } from "./mdast/mdast-reader.js";
 export { DataMap } from "./data-map.js";
 export { materializeNode, materializeTree, TYPE_NAMES } from "./mdast/mdast-materializer.js";
 export { visitMdast, MutationType } from "./mdast/mdast-visitor.js";
-export { CommandBuffer, classifyReturn, resolveFieldId } from "./command-buffer.js";
+export { CommandBuffer, classifyReturn } from "./command-buffer.js";
 export { defineMdastPlugin, defineHastPlugin } from "./plugin.js";
 export type { MdastPluginDefinition, HastPluginDefinition } from "./plugin.js";
 export { createProcessor, ProcessorContext } from "./processor.js";

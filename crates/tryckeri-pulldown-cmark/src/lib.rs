@@ -97,6 +97,7 @@ pub mod html;
 
 pub mod utils;
 
+pub mod arena_build;
 mod entities;
 mod firstpass;
 mod linklabel;
@@ -110,6 +111,7 @@ mod tree;
 use core::fmt::Display;
 
 pub use crate::{
+    arena_build::{parse, DEFAULT_OPTIONS, MDX_OPTIONS},
     parse::{
         BrokenLink, BrokenLinkCallback, DefaultParserCallbacks, OffsetIter, Parser,
         ParserCallbacks, RefDefs,

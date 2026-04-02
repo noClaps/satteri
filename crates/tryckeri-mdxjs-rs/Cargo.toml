@@ -1,7 +1,7 @@
 [dependencies]
 tryckeri-arena = { path = "../tryckeri-arena" }
 tryckeri-mdast = { path = "../tryckeri-mdast" }
-tryckeri-parser = { path = "../tryckeri-parser" }
+tryckeri-pulldown-cmark = { path = "../tryckeri-pulldown-cmark" }
 tryckeri-hast = { path = "../tryckeri-hast" }
 rustc-hash = "2"
 serde = { version = "1", features = ["derive"] }

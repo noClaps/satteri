@@ -9,4 +9,4 @@ tryckeri-mdast = { path = "../tryckeri-mdast" }
 pulldown-cmark-escape = "0.11"
 
 [dev-dependencies]
-tryckeri-parser = { path = "../tryckeri-parser" }
+tryckeri-pulldown-cmark = { path = "../tryckeri-pulldown-cmark" }

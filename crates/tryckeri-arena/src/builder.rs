@@ -5,8 +5,11 @@ use crate::node::StringRef;
 /// depth-first tree construction (e.g. SAX-style parsers).
 pub struct ArenaBuilder {
     arena: Arena,
-    /// Stack of `(node_id, children_collected_so_far)`.
-    stack: Vec<(u32, Vec<u32>)>,
+    /// Stack of `(node_id, children_start_in_pending)`.
+    stack: Vec<(u32, u32)>,
+    /// Flat buffer collecting child IDs for all open nodes.
+    /// Each stack frame's children are `pending[children_start..]` when it's the top frame.
+    pending_children: Vec<u32>,
 }
 
 impl ArenaBuilder {
@@ -14,6 +17,17 @@ impl ArenaBuilder {
         ArenaBuilder {
             arena: Arena::new(source),
             stack: Vec::new(),
+            pending_children: Vec::new(),
+        }
+    }
+
+    /// Create a builder wrapping a pre-allocated arena.
+    pub fn from_arena(arena: Arena) -> Self {
+        let cap = arena.children.capacity();
+        ArenaBuilder {
+            arena,
+            stack: Vec::with_capacity(16),
+            pending_children: Vec::with_capacity(cap),
         }
     }
 
@@ -27,12 +41,14 @@ impl ArenaBuilder {
                 hint.type_data.len(),
             ),
             stack: Vec::with_capacity(16),
+            pending_children: Vec::with_capacity(hint.children.len()),
         }
     }
 
     pub fn open_node(&mut self, node_type: u8) -> u32 {
         let node_id = self.arena.alloc_node(node_type);
-        self.stack.push((node_id, Vec::new()));
+        let start = self.pending_children.len() as u32;
+        self.stack.push((node_id, start));
         node_id
     }
 
@@ -42,29 +58,95 @@ impl ArenaBuilder {
     }
 
     pub fn close_node(&mut self) -> u32 {
-        let (node_id, children) = self
+        let (node_id, children_start) = self
             .stack
             .pop()
             .expect("close_node called with empty stack");
 
-        self.arena.set_children(node_id, &children);
+        let children_start = children_start as usize;
+        let children = &self.pending_children[children_start..];
 
-        if let Some((parent_id, parent_children)) = self.stack.last_mut() {
-            parent_children.push(node_id);
-            self.arena.set_parent(node_id, *parent_id);
+        // Copy children to the arena's flat array.
+        let arena_start = self.arena.children.len() as u32;
+        self.arena.children.extend_from_slice(children);
+        let node = &mut self.arena.nodes[node_id as usize];
+        node.children_start = arena_start;
+        node.children_count = (self.pending_children.len() - children_start) as u32;
+        for i in children_start..self.pending_children.len() {
+            self.arena.nodes[self.pending_children[i] as usize].parent = node_id;
+        }
+
+        // Truncate the pending buffer back to where this frame started.
+        self.pending_children.truncate(children_start);
+
+        // Register as child of parent.
+        if let Some((parent_id, _)) = self.stack.last() {
+            self.arena.nodes[node_id as usize].parent = *parent_id;
+            self.pending_children.push(node_id);
         }
 
         node_id
     }
 
+    /// Add a leaf node without the overhead of a full open/close cycle.
     pub fn add_leaf(&mut self, node_type: u8) -> u32 {
-        self.open_node(node_type);
-        self.close_node()
+        let node_id = self.arena.alloc_node(node_type);
+
+        // Register as child of parent directly.
+        if let Some((parent_id, _)) = self.stack.last() {
+            self.arena.nodes[node_id as usize].parent = *parent_id;
+            self.pending_children.push(node_id);
+        }
+
+        node_id
     }
 
     /// Alias for `add_leaf` — kept for call-site clarity in HAST code.
     pub fn add_leaf_raw(&mut self, node_type: u8) -> u32 {
         self.add_leaf(node_type)
+    }
+
+    /// Add a leaf node with position and type data in one call (avoids repeated node lookups).
+    #[inline]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_leaf_full(
+        &mut self,
+        node_type: u8,
+        start_offset: u32,
+        end_offset: u32,
+        start_line: u32,
+        start_column: u32,
+        end_line: u32,
+        end_column: u32,
+        data: &[u8],
+    ) -> u32 {
+        let node_id = self.arena.alloc_node(node_type);
+
+        // Set position directly.
+        let node = &mut self.arena.nodes[node_id as usize];
+        node.start_offset = start_offset;
+        node.end_offset = end_offset;
+        node.start_line = start_line;
+        node.start_column = start_column;
+        node.end_line = end_line;
+        node.end_column = end_column;
+
+        // Set type data.
+        if !data.is_empty() {
+            let offset = self.arena.type_data.len() as u32;
+            self.arena.type_data.extend_from_slice(data);
+            let node = &mut self.arena.nodes[node_id as usize];
+            node.data_offset = offset;
+            node.data_len = data.len() as u32;
+        }
+
+        // Register as child of parent.
+        if let Some((parent_id, _)) = self.stack.last() {
+            self.arena.nodes[node_id as usize].parent = *parent_id;
+            self.pending_children.push(node_id);
+        }
+
+        node_id
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -131,8 +213,28 @@ impl ArenaBuilder {
         &self.arena
     }
 
-    pub fn current_children_mut(&mut self) -> &mut Vec<u32> {
-        &mut self.stack.last_mut().expect("empty stack").1
+    /// Returns a mutable view of the current node's pending children.
+    /// The returned Vec is a temporary clone; callers must write back via `replace_current_children`.
+    pub fn current_children_snapshot(&self) -> Vec<u32> {
+        let (_, children_start) = self.stack.last().expect("empty stack");
+        self.pending_children[*children_start as usize..].to_vec()
+    }
+
+    /// Replace the current node's pending children entirely.
+    pub fn replace_current_children(&mut self, new_children: &[u32]) {
+        let (_, children_start) = self.stack.last().expect("empty stack");
+        let start = *children_start as usize;
+        self.pending_children.truncate(start);
+        self.pending_children.extend_from_slice(new_children);
+    }
+
+    /// Returns a mutable reference to the pending children slice for the current node.
+    pub fn current_children_mut(&mut self) -> PendingChildrenMut<'_> {
+        let (_, children_start) = *self.stack.last().expect("empty stack");
+        PendingChildrenMut {
+            pending: &mut self.pending_children,
+            start: children_start as usize,
+        }
     }
 
     pub fn arena_mut(&mut self) -> &mut Arena {
@@ -145,6 +247,30 @@ impl ArenaBuilder {
             self.close_node();
         }
         self.arena
+    }
+}
+
+/// Mutable view into the pending children of the current stack frame.
+pub struct PendingChildrenMut<'a> {
+    pending: &'a mut Vec<u32>,
+    start: usize,
+}
+
+impl PendingChildrenMut<'_> {
+    pub fn as_slice(&self) -> &[u32] {
+        &self.pending[self.start..]
+    }
+
+    pub fn clone_to_vec(&self) -> Vec<u32> {
+        self.pending[self.start..].to_vec()
+    }
+
+    pub fn clear(&mut self) {
+        self.pending.truncate(self.start);
+    }
+
+    pub fn extend_from_slice(&mut self, items: &[u32]) {
+        self.pending.extend_from_slice(items);
     }
 }
 

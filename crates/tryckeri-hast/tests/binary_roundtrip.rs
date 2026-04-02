@@ -4,7 +4,7 @@ use tryckeri_hast::{hast_buffer_to_html, mdast_to_hast_buffer};
 use tryckeri_arena::BUFFER_MAGIC;
 
 fn parse_to_mdast_buf(md: &str) -> Vec<u8> {
-    let (arena, _) = tryckeri_parser::parse(md, &tryckeri_parser::ParseOptions::default());
+    let (arena, _) = tryckeri_pulldown_cmark::parse(md, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
     arena.to_raw_buffer()
 }
 

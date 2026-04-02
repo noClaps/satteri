@@ -132,15 +132,15 @@ pub(crate) enum ItemBody {
     TableCell,
 
     // MDX
-    MdxJsxFlowElement(CowIndex),
-    MdxJsxTextElement(CowIndex),
+    MdxJsxFlowElement(JsxElementIndex),
+    MdxJsxTextElement(JsxElementIndex),
     MdxFlowExpression(CowIndex),
     MdxTextExpression(CowIndex),
     MdxEsm(CowIndex),
 }
 
 impl ItemBody {
-    fn is_maybe_inline(&self) -> bool {
+    pub(crate) fn is_maybe_inline(&self) -> bool {
         use ItemBody::*;
         matches!(
             *self,
@@ -202,11 +202,11 @@ pub struct Parser<'input, CB = DefaultParserCallbacks> {
 
 // Inner state for `Parser`, extracted so that it can remain generic over the callback without
 // re-compiling complex logic for each instantiation of the generic type.
-struct ParserInner<'input> {
-    text: &'input str,
-    options: Options,
-    tree: Tree<Item>,
-    allocs: Allocations<'input>,
+pub(crate) struct ParserInner<'input> {
+    pub(crate) text: &'input str,
+    pub(crate) options: Options,
+    pub(crate) tree: Tree<Item>,
+    pub(crate) allocs: Allocations<'input>,
     html_scan_guard: HtmlScanGuard,
 
     // https://github.com/pulldown-cmark/pulldown-cmark/issues/844
@@ -228,7 +228,7 @@ struct ParserInner<'input> {
     link_ref_expansion_limit: usize,
 
     /// MDX validation errors collected during inline parsing.
-    mdx_errors: Vec<(usize, String)>,
+    pub(crate) mdx_errors: Vec<(usize, String)>,
 
     // used by inline passes. store them here for reuse
     inline_stack: InlineStack,
@@ -369,6 +369,25 @@ impl<'input, F> Parser<'input, BrokenLinkCallback<F>> {
 }
 
 impl<'input> ParserInner<'input> {
+    pub(crate) fn new(text: &'input str, options: Options) -> Self {
+        let (mut tree, allocs) = run_first_pass(text, options);
+        tree.reset();
+        ParserInner {
+            text,
+            options,
+            tree,
+            allocs,
+            inline_stack: Default::default(),
+            link_stack: Default::default(),
+            wikilink_stack: Default::default(),
+            html_scan_guard: Default::default(),
+            link_ref_expansion_limit: text.len().max(100_000),
+            mdx_errors: Vec::new(),
+            code_delims: CodeDelims::new(),
+            math_delims: MathDelims::new(),
+        }
+    }
+
     /// Use a link label to fetch a type, url, and title.
     ///
     /// This function enforces the [`link_ref_expansion_limit`].
@@ -441,7 +460,7 @@ impl<'input> ParserInner<'input> {
     /// inline markup passes are run on the remainder of the chain.
     ///
     /// Note: there's some potential for optimization here, but that's future work.
-    fn handle_inline(&mut self, callbacks: &mut dyn ParserCallbacks<'input>) {
+    pub(crate) fn handle_inline(&mut self, callbacks: &mut dyn ParserCallbacks<'input>) {
         self.handle_inline_pass1(callbacks);
         self.handle_emphasis_and_hard_break();
     }
@@ -489,8 +508,9 @@ impl<'input> ParserInner<'input> {
                             let end = start + total_len;
                             let node = scan_nodes_to_ix(&self.tree, self.tree[cur_ix].next, end);
                             let raw = &block_text[start..end];
-                            let cow_ix = self.allocs.allocate_cow(raw.into());
-                            self.tree[cur_ix].item.body = ItemBody::MdxJsxTextElement(cow_ix);
+                            let jsx_data = crate::mdx::parse_jsx_tag(raw);
+                            let jsx_ix = self.allocs.allocate_jsx_element(jsx_data);
+                            self.tree[cur_ix].item.body = ItemBody::MdxJsxTextElement(jsx_ix);
                             self.tree[cur_ix].item.end = end;
                             self.tree[cur_ix].next = node;
                             prev = cur;
@@ -2072,6 +2092,28 @@ pub(crate) struct AlignmentIndex(usize);
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub(crate) struct HeadingIndex(NonZeroUsize);
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub(crate) struct JsxElementIndex(usize);
+
+/// A parsed JSX attribute.
+#[derive(Debug, Clone)]
+pub(crate) enum JsxAttr<'a> {
+    Boolean(CowStr<'a>),
+    Literal(CowStr<'a>, CowStr<'a>),
+    Expression(CowStr<'a>, CowStr<'a>),
+    Spread(CowStr<'a>),
+}
+
+/// Pre-parsed JSX element data (name + attributes + tag classification).
+#[derive(Debug, Clone)]
+pub(crate) struct JsxElementData<'a> {
+    pub name: CowStr<'a>,
+    pub attrs: Vec<JsxAttr<'a>>,
+    pub raw: CowStr<'a>,
+    pub is_closing: bool,
+    pub is_self_closing: bool,
+}
+
 #[derive(Clone)]
 pub(crate) struct Allocations<'a> {
     pub refdefs: RefDefs<'a>,
@@ -2080,6 +2122,7 @@ pub(crate) struct Allocations<'a> {
     cows: Vec<CowStr<'a>>,
     alignments: Vec<Vec<Alignment>>,
     headings: Vec<HeadingAttributes<'a>>,
+    jsx_elements: Vec<JsxElementData<'a>>,
 }
 
 /// Used by the heading attributes extension.
@@ -2136,6 +2179,7 @@ impl<'a> Allocations<'a> {
             cows: Vec::new(),
             alignments: Vec::new(),
             headings: Vec::new(),
+            jsx_elements: Vec::new(),
         }
     }
 
@@ -2183,6 +2227,25 @@ impl<'a> Allocations<'a> {
 
     pub fn take_alignment(&mut self, ix: AlignmentIndex) -> Vec<Alignment> {
         core::mem::take(&mut self.alignments[ix.0])
+    }
+
+    pub fn allocate_jsx_element(&mut self, data: JsxElementData<'a>) -> JsxElementIndex {
+        let ix = self.jsx_elements.len();
+        self.jsx_elements.push(data);
+        JsxElementIndex(ix)
+    }
+
+    pub fn take_jsx_element(&mut self, ix: JsxElementIndex) -> JsxElementData<'a> {
+        core::mem::replace(
+            &mut self.jsx_elements[ix.0],
+            JsxElementData {
+                name: "".into(),
+                attrs: Vec::new(),
+                raw: "".into(),
+                is_closing: false,
+                is_self_closing: false,
+            },
+        )
     }
 }
 
@@ -2500,8 +2563,14 @@ fn item_to_event<'a>(item: Item, text: &'a str, allocs: &mut Allocations<'a>) ->
         ItemBody::DefinitionList(_) => Tag::DefinitionList,
         ItemBody::DefinitionListTitle => Tag::DefinitionListTitle,
         ItemBody::DefinitionListDefinition(_) => Tag::DefinitionListDefinition,
-        ItemBody::MdxJsxFlowElement(cow_ix) => Tag::MdxJsxFlowElement(allocs.take_cow(cow_ix)),
-        ItemBody::MdxJsxTextElement(cow_ix) => Tag::MdxJsxTextElement(allocs.take_cow(cow_ix)),
+        ItemBody::MdxJsxFlowElement(jsx_ix) => {
+            let jsx = allocs.take_jsx_element(jsx_ix);
+            Tag::MdxJsxFlowElement(jsx.raw)
+        }
+        ItemBody::MdxJsxTextElement(jsx_ix) => {
+            let jsx = allocs.take_jsx_element(jsx_ix);
+            Tag::MdxJsxTextElement(jsx.raw)
+        }
         ItemBody::MdxFlowExpression(cow_ix) => {
             return Event::MdxFlowExpression(allocs.take_cow(cow_ix))
         }

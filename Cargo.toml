@@ -4,7 +4,6 @@ members = [
   "crates/tryckeri-mdast",
   "crates/bench",
   "crates/tryckeri-hast",
-  "crates/tryckeri-parser",
   "crates/tryckeri-napi-binding",
   "crates/tryckeri-plugin-api",
   "crates/tryckeri-mdxjs-rs",

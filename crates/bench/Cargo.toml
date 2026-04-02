@@ -12,8 +12,9 @@ harness = false
 name = "profile_parse"
 path = "src/profile_parse.rs"
 
+
 [dependencies]
-tryckeri-parser = { path = "../tryckeri-parser" }
+tryckeri-pulldown-cmark = { path = "../tryckeri-pulldown-cmark" }
 
 [dev-dependencies]
 divan = "0.1"
@@ -22,4 +23,3 @@ tryckeri-mdxjs = { path = "../tryckeri-mdxjs-rs" }
 oxc_allocator = { workspace = true }
 rustc-hash = "2"
 tryckeri-pulldown-cmark = { path = "../tryckeri-pulldown-cmark" }
-tryckeri-parser = { path = "../tryckeri-parser" }

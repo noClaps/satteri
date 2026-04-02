@@ -9,7 +9,7 @@
 
 /// Parse Markdown source and render it directly to HTML.
 pub fn markdown_to_html(source: &str) -> String {
-    let (arena, _) = tryckeri_parser::parse(source, &tryckeri_parser::ParseOptions::default());
+    let (arena, _) = tryckeri_pulldown_cmark::parse(source, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
     tryckeri_hast::mdast_to_html(&arena)
 }
 

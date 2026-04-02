@@ -8,7 +8,7 @@ use tryckeri_hast::{hast_buffer_to_html, mdast_to_hast_buffer, mdast_to_html};
 /// Path A (in-memory): parse → mdast_to_html
 /// Path B (binary):    parse → to_raw_buffer → mdast_to_hast_buffer → hast_buffer_to_html
 fn assert_parity(md: &str) {
-    let (arena, _errors) = tryckeri_parser::parse(md, &tryckeri_parser::ParseOptions::default());
+    let (arena, _errors) = tryckeri_pulldown_cmark::parse(md, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
 
     // Path A: in-memory
     let html_memory = mdast_to_html(&arena);

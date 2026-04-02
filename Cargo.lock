@@ -1007,7 +1007,7 @@ dependencies = [
  "tryckeri-hast",
  "tryckeri-mdast",
  "tryckeri-mdxjs",
- "tryckeri-parser",
+ "tryckeri-pulldown-cmark",
 ]
 
 [[package]]
@@ -1027,7 +1027,6 @@ dependencies = [
  "rustc-hash",
  "tryckeri-hast",
  "tryckeri-mdxjs",
- "tryckeri-parser",
  "tryckeri-pulldown-cmark",
 ]
 
@@ -1038,7 +1037,7 @@ dependencies = [
  "pulldown-cmark-escape",
  "tryckeri-arena",
  "tryckeri-mdast",
- "tryckeri-parser",
+ "tryckeri-pulldown-cmark",
 ]
 
 [[package]]
@@ -1068,7 +1067,7 @@ dependencies = [
  "tryckeri-arena",
  "tryckeri-hast",
  "tryckeri-mdast",
- "tryckeri-parser",
+ "tryckeri-pulldown-cmark",
 ]
 
 [[package]]
@@ -1082,16 +1081,6 @@ dependencies = [
  "tryckeri-hast",
  "tryckeri-mdast",
  "tryckeri-mdxjs",
- "tryckeri-parser",
-]
-
-[[package]]
-name = "tryckeri-parser"
-version = "0.1.0"
-dependencies = [
- "tryckeri-arena",
- "tryckeri-hast",
- "tryckeri-mdast",
  "tryckeri-pulldown-cmark",
 ]
 
@@ -1113,6 +1102,8 @@ dependencies = [
  "pulldown-cmark-escape",
  "rustc-hash",
  "serde",
+ "tryckeri-arena",
+ "tryckeri-mdast",
  "unicase",
 ]
 

@@ -544,17 +544,14 @@ impl<'a, 'b> FirstPass<'a, 'b> {
     }
 
     pub(crate) fn parse_mdx_jsx_flow(&mut self, start_ix: usize, end_ix: usize) -> usize {
-        // Extract the tag content (everything between < and >).
         let raw = &self.text[start_ix..end_ix].trim_end();
-        let cow_ix = self.allocs.allocate_cow((*raw).into());
+        let jsx_data = parse_jsx_tag(raw);
+        let jsx_ix = self.allocs.allocate_jsx_element(jsx_data);
         self.tree.append(Item {
             start: start_ix,
             end: end_ix,
-            body: ItemBody::MdxJsxFlowElement(cow_ix),
+            body: ItemBody::MdxJsxFlowElement(jsx_ix),
         });
-        // For self-closing tags, no children. For opening tags, we'd need to
-        // find the closing tag — but for now, emit as a leaf (matching mdx-js behavior
-        // where the AST builder pairs them later).
         end_ix
     }
 
@@ -570,4 +567,243 @@ impl<'a, 'b> FirstPass<'a, 'b> {
         });
         end_ix
     }
+}
+
+// ---------------------------------------------------------------------------
+// JSX tag parser: extracts name, attributes, and tag classification
+// ---------------------------------------------------------------------------
+
+use crate::parse::{JsxAttr, JsxElementData};
+
+/// Parse a raw JSX tag string into structured `JsxElementData`.
+///
+/// Handles opening, closing, self-closing tags, and fragments.
+/// Attributes are extracted with zero-copy `CowStr::Borrowed` where possible.
+pub(crate) fn parse_jsx_tag<'a>(raw: &'a str) -> JsxElementData<'a> {
+    let s = raw.trim();
+
+    // Closing tag: </Name>
+    if let Some(rest) = s.strip_prefix("</") {
+        let name = extract_tag_name(rest);
+        return JsxElementData {
+            name: name.into(),
+            attrs: Vec::new(),
+            raw: raw.into(),
+            is_closing: true,
+            is_self_closing: false,
+        };
+    }
+
+    // Self-closing: ends with />
+    let ends_self_close = s.ends_with("/>");
+
+    // Extract name — skip leading '<'
+    let name = extract_tag_name(&s[1..]);
+
+    // Check for self-contained: <Name ...>...</Name> or <>...</>
+    let is_self_contained = if !name.is_empty() {
+        let close_tag = alloc::format!("</{name}>");
+        s.contains(&*close_tag)
+    } else {
+        s.contains("</>")
+    };
+
+    let is_self_closing = ends_self_close || is_self_contained;
+
+    // Parse attributes
+    let attrs = parse_jsx_attrs(s);
+
+    JsxElementData {
+        name: name.into(),
+        attrs,
+        raw: raw.into(),
+        is_closing: false,
+        is_self_closing,
+    }
+}
+
+fn extract_tag_name(s: &str) -> &str {
+    let end = s
+        .find(|c: char| c.is_whitespace() || c == '/' || c == '>' || c == '{')
+        .unwrap_or(s.len());
+    &s[..end]
+}
+
+/// Extract the opening tag portion (up to the first unbalanced `>`).
+fn extract_opening_tag(text: &str) -> &str {
+    let mut depth = 0i32;
+    let mut in_single_quote = false;
+    let mut in_double_quote = false;
+    let mut in_backtick = false;
+    let mut prev = '\0';
+
+    for (i, ch) in text.char_indices() {
+        if in_single_quote {
+            if ch == '\'' && prev != '\\' {
+                in_single_quote = false;
+            }
+        } else if in_double_quote {
+            if ch == '"' && prev != '\\' {
+                in_double_quote = false;
+            }
+        } else if in_backtick {
+            if ch == '`' && prev != '\\' {
+                in_backtick = false;
+            }
+        } else {
+            match ch {
+                '\'' => in_single_quote = true,
+                '"' => in_double_quote = true,
+                '`' => in_backtick = true,
+                '{' => depth += 1,
+                '}' => depth -= 1,
+                '>' if depth == 0 => return &text[..=i],
+                _ => {}
+            }
+        }
+        prev = ch;
+    }
+    text
+}
+
+fn parse_jsx_attrs<'a>(text: &'a str) -> Vec<JsxAttr<'a>> {
+    let tag = extract_opening_tag(text);
+    let bytes = tag.as_bytes();
+    let len = bytes.len();
+
+    let mut attrs = Vec::new();
+    let mut i = 1; // skip '<'
+
+    // Skip '/' for closing tags
+    if i < len && bytes[i] == b'/' {
+        i += 1;
+    }
+
+    // Skip whitespace
+    while i < len && bytes[i].is_ascii_whitespace() {
+        i += 1;
+    }
+
+    // Skip tag name
+    while i < len
+        && (bytes[i].is_ascii_alphanumeric() || matches!(bytes[i], b'.' | b'-' | b':' | b'_'))
+    {
+        i += 1;
+    }
+
+    loop {
+        // Skip whitespace
+        while i < len && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+        if i >= len {
+            break;
+        }
+        if bytes[i] == b'>' || (bytes[i] == b'/' && i + 1 < len && bytes[i + 1] == b'>') {
+            break;
+        }
+
+        // Spread expression: {...expr}
+        if bytes[i] == b'{' {
+            i += 1;
+            let start = i;
+            let mut depth = 1i32;
+            while i < len && depth > 0 {
+                match bytes[i] {
+                    b'{' => depth += 1,
+                    b'}' => depth -= 1,
+                    b'\'' | b'"' | b'`' => {
+                        let q = bytes[i];
+                        i += 1;
+                        while i < len && bytes[i] != q {
+                            if bytes[i] == b'\\' {
+                                i += 1;
+                            }
+                            i += 1;
+                        }
+                    }
+                    _ => {}
+                }
+                i += 1;
+            }
+            let value = tag[start..i.saturating_sub(1)].trim();
+            attrs.push(JsxAttr::Spread(value.into()));
+            continue;
+        }
+
+        // Attribute name
+        let name_start = i;
+        while i < len
+            && (bytes[i].is_ascii_alphanumeric() || matches!(bytes[i], b'-' | b':' | b'_'))
+        {
+            i += 1;
+        }
+        if i == name_start {
+            i += 1;
+            continue;
+        }
+        let name = &tag[name_start..i];
+
+        // Skip whitespace
+        while i < len && bytes[i].is_ascii_whitespace() {
+            i += 1;
+        }
+
+        if i < len && bytes[i] == b'=' {
+            i += 1;
+            while i < len && bytes[i].is_ascii_whitespace() {
+                i += 1;
+            }
+            if i >= len {
+                attrs.push(JsxAttr::Boolean(name.into()));
+                continue;
+            }
+            if bytes[i] == b'"' || bytes[i] == b'\'' {
+                let q = bytes[i];
+                i += 1;
+                let val_start = i;
+                while i < len && bytes[i] != q {
+                    if bytes[i] == b'\\' {
+                        i += 1;
+                    }
+                    i += 1;
+                }
+                let value = &tag[val_start..i];
+                if i < len {
+                    i += 1;
+                }
+                attrs.push(JsxAttr::Literal(name.into(), value.into()));
+            } else if bytes[i] == b'{' {
+                i += 1;
+                let val_start = i;
+                let mut depth = 1i32;
+                while i < len && depth > 0 {
+                    match bytes[i] {
+                        b'{' => depth += 1,
+                        b'}' => depth -= 1,
+                        b'\'' | b'"' | b'`' => {
+                            let q = bytes[i];
+                            i += 1;
+                            while i < len && bytes[i] != q {
+                                if bytes[i] == b'\\' {
+                                    i += 1;
+                                }
+                                i += 1;
+                            }
+                        }
+                        _ => {}
+                    }
+                    i += 1;
+                }
+                let value = &tag[val_start..i.saturating_sub(1)];
+                attrs.push(JsxAttr::Expression(name.into(), value.into()));
+            } else {
+                attrs.push(JsxAttr::Boolean(name.into()));
+            }
+        } else {
+            attrs.push(JsxAttr::Boolean(name.into()));
+        }
+    }
+
+    attrs
 }

@@ -37,9 +37,53 @@ impl LineIndex {
         }
     }
 
+    /// Create a cursor for O(1) amortized lookups when offsets are roughly ascending.
+    pub fn cursor(&self) -> LineIndexCursor<'_> {
+        LineIndexCursor {
+            index: self,
+            last_line_idx: 0,
+        }
+    }
+
     /// Number of lines in the source (including a final unterminated line).
     pub fn line_count(&self) -> usize {
         self.line_offsets.len()
+    }
+}
+
+/// A cursor over a `LineIndex` that remembers its last position for O(1) amortized lookups.
+///
+/// When offsets arrive in roughly ascending order (as they do from a parser),
+/// the cursor scans forward from the last known line instead of binary-searching.
+pub struct LineIndexCursor<'a> {
+    index: &'a LineIndex,
+    last_line_idx: usize,
+}
+
+impl LineIndexCursor<'_> {
+    pub fn offset_to_line_col(&mut self, offset: u32) -> (u32, u32) {
+        let offsets = &self.index.line_offsets;
+        let len = offsets.len();
+
+        // Fast path: check if offset is still on the same line as last lookup.
+        let mut idx = self.last_line_idx;
+        let line_start = offsets[idx];
+        if offset >= line_start {
+            // Scan forward from current position.
+            while idx + 1 < len && offsets[idx + 1] <= offset {
+                idx += 1;
+            }
+        } else {
+            // Offset went backwards — scan backwards from current position.
+            while idx > 0 && offsets[idx] > offset {
+                idx -= 1;
+            }
+        }
+
+        self.last_line_idx = idx;
+        let line = idx as u32 + 1;
+        let col = offset - offsets[idx] + 1;
+        (line, col)
     }
 }
 

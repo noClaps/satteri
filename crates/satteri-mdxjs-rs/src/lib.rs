@@ -147,9 +147,7 @@ pub fn compile_hast_arena(
 /// - Collapsed by `optimizeStatic` into `set:html`
 /// - Rendered to HTML by `render_node`
 pub fn simplify_plain_mdx_nodes(arena: &mut satteri_arena::Arena, ignore_elements: &[String]) {
-    use satteri_hast::node_types::{
-        HAST_ELEMENT, HAST_MDX_JSX_ELEMENT, HAST_MDX_JSX_TEXT_ELEMENT,
-    };
+    use satteri_hast::node_types::{HAST_ELEMENT, HAST_MDX_JSX_ELEMENT, HAST_MDX_JSX_TEXT_ELEMENT};
     use satteri_mdast::{decode_mdx_jsx_attr_count, decode_mdx_jsx_element_name};
 
     let node_count = arena.len();

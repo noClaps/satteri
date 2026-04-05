@@ -20,8 +20,8 @@ use oxc_ast::ast::{
 };
 use oxc_span::{SPAN, Span};
 use oxc_syntax::node::NodeId;
-use std::cell::Cell;
 use satteri_arena::mdx_types::{self as message, Location, Message};
+use std::cell::Cell;
 
 /// Configuration.
 #[derive(Debug, Default, Clone)]

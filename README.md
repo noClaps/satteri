@@ -10,20 +10,20 @@ Sätteri is a Rust + TypeScript monorepo, that contains the following crates (Ru
 
 | Name                    | Description                                                                            | Registry | README                                             |
 | ----------------------- | -------------------------------------------------------------------------------------- | -------- | -------------------------------------------------- |
-| `satteri-mdast`        | Arena-allocated MDAST with zero-copy string references and binary buffer format        | _WIP_    | [README](./crates/mdast/README.md)                 |
+| `satteri-mdast`         | Arena-allocated MDAST with zero-copy string references and binary buffer format        | _WIP_    | [README](./crates/mdast/README.md)                 |
 | `parser`                | Bridges pulldown-cmark events into an `MdastArena` (tables, footnotes, math, MDX, …)   | _WIP_    | [README](./crates/parser/README.md)                |
-| `satteri-hast`         | MDAST → HAST conversion and HTML serialization, with binary HAST buffer support        | _WIP_    | [README](./crates/hast/README.md)                  |
-| `satteri-plugin-api`   | Rust `Plugin` trait, typed visitors, `PluginRunner`, and command/patch mutation system | _WIP_    | [README](./crates/plugin-api/README.md)            |
-| `satteri-napi`         | NAPI bindings exposing the Rust pipeline to Node.js                                    | _WIP_    | [README](./crates/napi-binding/README.md)          |
+| `satteri-hast`          | MDAST → HAST conversion and HTML serialization, with binary HAST buffer support        | _WIP_    | [README](./crates/hast/README.md)                  |
+| `satteri-plugin-api`    | Rust `Plugin` trait, typed visitors, `PluginRunner`, and command/patch mutation system | _WIP_    | [README](./crates/plugin-api/README.md)            |
+| `satteri-napi`          | NAPI bindings exposing the Rust pipeline to Node.js                                    | _WIP_    | [README](./crates/napi-binding/README.md)          |
 | `mdxjs`                 | MDX → JavaScript compiler — fork of [mdxjs-rs] adapted for pulldown-cmark and [OXC]    | _WIP_    | [README](./crates/mdxjs-rs/readme.md)              |
 | `pulldown-cmark`        | Vendored CommonMark parser with MDX extension support                                  | _WIP_    | _—_                                                |
 | `pulldown-cmark-escape` | Vendored HTML escape utilities from the pulldown-cmark project                         | _WIP_    | [README](./crates/pulldown-cmark-escape/README.md) |
-| `satteri-bench`        | Benchmarks and profiling harnesses for the pipeline                                    | _WIP_    | [README](./crates/bench/README.md)                 |
+| `satteri-bench`         | Benchmarks and profiling harnesses for the pipeline                                    | _WIP_    | [README](./crates/bench/README.md)                 |
 
 Sätteri also includes the following npm package:
 
-| Name              | Description                                                                                           | Registry | README                                  |
-| ----------------- | ----------------------------------------------------------------------------------------------------- | -------- | --------------------------------------- |
+| Name             | Description                                                                                           | Registry | README                                 |
+| ---------------- | ----------------------------------------------------------------------------------------------------- | -------- | -------------------------------------- |
 | [`satteri`][npm] | TypeScript layer: binary buffer readers, visitor pattern, plugin API, and top-level compile functions | _WIP_    | [README](./packages/satteri/README.md) |
 
 ## Acknowledgements

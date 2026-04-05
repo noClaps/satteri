@@ -9,8 +9,7 @@
 
 /// Parse Markdown source and render it directly to HTML.
 pub fn markdown_to_html(source: &str) -> String {
-    let (arena, _) =
-        satteri_pulldown_cmark::parse(source, satteri_pulldown_cmark::DEFAULT_OPTIONS);
+    let (arena, _) = satteri_pulldown_cmark::parse(source, satteri_pulldown_cmark::DEFAULT_OPTIONS);
     satteri_hast::mdast_to_html(&arena)
 }
 

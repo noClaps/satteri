@@ -3,9 +3,10 @@
 
 use tryckeri_arena::{Arena, ArenaBuilder, LineIndex, StringRef};
 use tryckeri_mdast::{
-    encode_mdx_jsx_element_data, encode_table_data, ColumnAlign, MdastNodeType,
-    CodeData, ExpressionData, FootnoteDefinitionData, ImageData, LinkData, ListData, ListItemData, MathData, ReferenceData,
-    MDX_ATTR_BOOLEAN_PROP, MDX_ATTR_EXPRESSION_PROP, MDX_ATTR_LITERAL_PROP, MDX_ATTR_SPREAD,
+    encode_mdx_jsx_element_data, encode_table_data, CodeData, ColumnAlign, ExpressionData,
+    FootnoteDefinitionData, ImageData, LinkData, ListData, ListItemData, MathData, MdastNodeType,
+    ReferenceData, MDX_ATTR_BOOLEAN_PROP, MDX_ATTR_EXPRESSION_PROP, MDX_ATTR_LITERAL_PROP,
+    MDX_ATTR_SPREAD,
 };
 
 use crate::parse::{DefaultParserCallbacks, ItemBody, JsxAttr, ParserInner};
@@ -23,7 +24,8 @@ pub const DEFAULT_OPTIONS: Options = Options::from_bits_truncate(
 );
 
 /// MDX options: default options plus JSX, expressions, and ESM.
-pub const MDX_OPTIONS: Options = Options::from_bits_truncate(DEFAULT_OPTIONS.bits() | Options::ENABLE_MDX.bits());
+pub const MDX_OPTIONS: Options =
+    Options::from_bits_truncate(DEFAULT_OPTIONS.bits() | Options::ENABLE_MDX.bits());
 
 /// Parse markdown source into an Arena.
 ///
@@ -322,7 +324,13 @@ pub fn parse(source: &str, options: Options) -> (Arena, Vec<(usize, String)>) {
                         builder.set_position_current(
                             start, end, start_line, start_col, end_line, end_col,
                         );
-                        let cd = CodeData { lang: lang_ref, meta: meta_ref, value: StringRef::empty(), fence_char: b'`', _pad: [0; 3] };
+                        let cd = CodeData {
+                            lang: lang_ref,
+                            meta: meta_ref,
+                            value: StringRef::empty(),
+                            fence_char: b'`',
+                            _pad: [0; 3],
+                        };
                         builder.set_data_current(&cd.to_bytes());
                         code_block_buf = Some(String::with_capacity(256));
                         inner.tree.push();
@@ -332,7 +340,13 @@ pub fn parse(source: &str, options: Options) -> (Arena, Vec<(usize, String)>) {
                         builder.set_position_current(
                             start, end, start_line, start_col, end_line, end_col,
                         );
-                        let cd = CodeData { lang: StringRef::empty(), meta: StringRef::empty(), value: StringRef::empty(), fence_char: b' ', _pad: [0; 3] };
+                        let cd = CodeData {
+                            lang: StringRef::empty(),
+                            meta: StringRef::empty(),
+                            value: StringRef::empty(),
+                            fence_char: b' ',
+                            _pad: [0; 3],
+                        };
                         builder.set_data_current(&cd.to_bytes());
                         code_block_buf = Some(String::with_capacity(256));
                         inner.tree.push();
@@ -344,7 +358,12 @@ pub fn parse(source: &str, options: Options) -> (Arena, Vec<(usize, String)>) {
                         builder.set_position_current(
                             start, end, start_line, start_col, end_line, end_col,
                         );
-                        let ld = ListData { start: start_num, ordered, spread: !is_tight, _pad: [0; 2] };
+                        let ld = ListData {
+                            start: start_num,
+                            ordered,
+                            spread: !is_tight,
+                            _pad: [0; 2],
+                        };
                         builder.set_data_current(&ld.to_bytes());
                         inner.tree.push();
                     }
@@ -353,7 +372,13 @@ pub fn parse(source: &str, options: Options) -> (Arena, Vec<(usize, String)>) {
                         builder.set_position_current(
                             start, end, start_line, start_col, end_line, end_col,
                         );
-                        builder.set_data_current(&ListItemData { checked: 2, spread: false }.to_bytes());
+                        builder.set_data_current(
+                            &ListItemData {
+                                checked: 2,
+                                spread: false,
+                            }
+                            .to_bytes(),
+                        );
                         inner.tree.push();
                     }
                     ItemBody::Table(align_ix) => {
@@ -421,7 +446,13 @@ pub fn parse(source: &str, options: Options) -> (Arena, Vec<(usize, String)>) {
                         builder.set_position_current(
                             start, end, start_line, start_col, end_line, end_col,
                         );
-                        builder.set_data_current(&LinkData { url: url_ref, title: title_ref }.to_bytes());
+                        builder.set_data_current(
+                            &LinkData {
+                                url: url_ref,
+                                title: title_ref,
+                            }
+                            .to_bytes(),
+                        );
                         inner.tree.push();
                     }
                     ItemBody::Image(link_ix) => {
@@ -437,7 +468,14 @@ pub fn parse(source: &str, options: Options) -> (Arena, Vec<(usize, String)>) {
                         builder.set_position_current(
                             start, end, start_line, start_col, end_line, end_col,
                         );
-                        builder.set_data_current(&ImageData { url: url_ref, alt: alt_ref, title: title_ref }.to_bytes());
+                        builder.set_data_current(
+                            &ImageData {
+                                url: url_ref,
+                                alt: alt_ref,
+                                title: title_ref,
+                            }
+                            .to_bytes(),
+                        );
                         if image_alt_buf.is_none() {
                             image_alt_buf = Some(String::with_capacity(64));
                         }
@@ -450,7 +488,13 @@ pub fn parse(source: &str, options: Options) -> (Arena, Vec<(usize, String)>) {
                         builder.set_position_current(
                             start, end, start_line, start_col, end_line, end_col,
                         );
-                        builder.set_data_current(&FootnoteDefinitionData { identifier: sr, label: sr }.to_bytes());
+                        builder.set_data_current(
+                            &FootnoteDefinitionData {
+                                identifier: sr,
+                                label: sr,
+                            }
+                            .to_bytes(),
+                        );
                         inner.tree.push();
                     }
                     ItemBody::HtmlBlock => {
@@ -702,7 +746,11 @@ pub fn parse(source: &str, options: Options) -> (Arena, Vec<(usize, String)>) {
                     }
                     ItemBody::TaskListMarker(checked) => {
                         let checked_val = if checked { 1 } else { 0 };
-                        let data = ListItemData { checked: checked_val, spread: false }.to_bytes();
+                        let data = ListItemData {
+                            checked: checked_val,
+                            spread: false,
+                        }
+                        .to_bytes();
                         let depth = builder.stack_depth();
                         for i in (0..depth).rev() {
                             if let Some(node_id) = builder.stack_node_id(i) {
@@ -719,7 +767,13 @@ pub fn parse(source: &str, options: Options) -> (Arena, Vec<(usize, String)>) {
                     ItemBody::FootnoteReference(cow_ix) => {
                         let cow = inner.allocs.take_cow(cow_ix);
                         let sr = builder.alloc_string(&cow);
-                        let data = ReferenceData { identifier: sr, label: sr, reference_kind: 0, _pad: [0; 3] }.to_bytes();
+                        let data = ReferenceData {
+                            identifier: sr,
+                            label: sr,
+                            reference_kind: 0,
+                            _pad: [0; 3],
+                        }
+                        .to_bytes();
                         builder.add_leaf_full(
                             MdastNodeType::FootnoteReference as u8,
                             start,
@@ -748,7 +802,11 @@ pub fn parse(source: &str, options: Options) -> (Arena, Vec<(usize, String)>) {
                             start_col,
                             end_line,
                             end_col,
-                            &MathData { meta: StringRef::empty(), value: sr }.to_bytes(),
+                            &MathData {
+                                meta: StringRef::empty(),
+                                value: sr,
+                            }
+                            .to_bytes(),
                         );
                         inner.tree.next_sibling(cur_ix);
                     }

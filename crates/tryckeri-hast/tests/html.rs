@@ -4,7 +4,8 @@
 use tryckeri_hast::mdast_to_html;
 
 fn html(md: &str) -> String {
-    let (arena, _errors) = tryckeri_pulldown_cmark::parse(md, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
+    let (arena, _errors) =
+        tryckeri_pulldown_cmark::parse(md, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
     mdast_to_html(&arena)
 }
 
@@ -30,17 +31,26 @@ fn paragraph() {
 
 #[test]
 fn emphasis() {
-    assert_eq!(html("Some *emphasized* text."), "<p>Some <em>emphasized</em> text.</p>");
+    assert_eq!(
+        html("Some *emphasized* text."),
+        "<p>Some <em>emphasized</em> text.</p>"
+    );
 }
 
 #[test]
 fn strong() {
-    assert_eq!(html("Some **strong** text."), "<p>Some <strong>strong</strong> text.</p>");
+    assert_eq!(
+        html("Some **strong** text."),
+        "<p>Some <strong>strong</strong> text.</p>"
+    );
 }
 
 #[test]
 fn inline_code() {
-    assert_eq!(html("Use `inline code` here."), "<p>Use <code>inline code</code> here.</p>");
+    assert_eq!(
+        html("Use `inline code` here."),
+        "<p>Use <code>inline code</code> here.</p>"
+    );
 }
 
 #[test]
@@ -122,18 +132,12 @@ fn thematic_break() {
 
 #[test]
 fn hard_line_break() {
-    assert_eq!(
-        html("Line one  \nLine two"),
-        "<p>Line one<br>Line two</p>"
-    );
+    assert_eq!(html("Line one  \nLine two"), "<p>Line one<br>Line two</p>");
 }
 
 #[test]
 fn text_escaping() {
-    assert_eq!(
-        html("a < b & c > d"),
-        "<p>a &lt; b &amp; c &gt; d</p>"
-    );
+    assert_eq!(html("a < b & c > d"), "<p>a &lt; b &amp; c &gt; d</p>");
 }
 
 #[test]

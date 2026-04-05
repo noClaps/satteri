@@ -15,8 +15,8 @@ use tryckeri_mdast::{
 ///     Paragraph (3)
 ///       Text "World" (4)
 fn build_hello_world() -> Arena {
-    use tryckeri_mdast::codec::{encode_heading_data, encode_string_ref_data};
     use tryckeri_arena::StringRef;
+    use tryckeri_mdast::codec::{encode_heading_data, encode_string_ref_data};
 
     let source = "# Hello\n\nWorld".to_string();
     let mut b = ArenaBuilder::new(source);

@@ -12,11 +12,19 @@ pub enum Patch {
         keep_children: bool,
     },
     /// Removes the entire subtree rooted at this node
-    Remove { node_id: u32 },
+    Remove {
+        node_id: u32,
+    },
     /// Inserted as a preceding sibling
-    InsertBefore { node_id: u32, new_tree: Arena },
+    InsertBefore {
+        node_id: u32,
+        new_tree: Arena,
+    },
     /// Inserted as a following sibling
-    InsertAfter { node_id: u32, new_tree: Arena },
+    InsertAfter {
+        node_id: u32,
+        new_tree: Arena,
+    },
     /// The original node becomes a child of the new parent
     Wrap {
         node_id: u32,
@@ -461,8 +469,8 @@ fn copy_node_raw(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MdastNodeType;
     use tryckeri_arena::ArenaBuilder;
-        use crate::MdastNodeType;
 
     /// Build the "# Hello\n\nWorld" arena for testing.
     fn build_hello_world() -> Arena {
@@ -790,7 +798,6 @@ mod tests {
     fn wrap_hast_element() {
         // Build a minimal HAST arena: root(0) -> h1(1) -> text(2)
         use crate::codec::encode_string_ref_data;
-        use tryckeri_arena::StringRef;
 
         const HAST_ROOT: u8 = 0;
         const HAST_ELEMENT: u8 = 1;

@@ -5,11 +5,7 @@
  * Only matched nodes and mutation commands cross the NAPI boundary.
  */
 
-import {
-  visitHastHandle,
-  resolveSubscriptions,
-  type HastHandle,
-} from "./hast/hast-visitor.js";
+import { visitHastHandle, resolveSubscriptions, type HastHandle } from "./hast/hast-visitor.js";
 import {
   visitMdastHandle,
   resolveMdastSubscriptions,

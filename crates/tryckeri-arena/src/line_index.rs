@@ -28,7 +28,6 @@ impl LineIndex {
             last_line_idx: 0,
         }
     }
-
 }
 
 /// A cursor over a `LineIndex` that remembers its last position for O(1) amortized lookups.

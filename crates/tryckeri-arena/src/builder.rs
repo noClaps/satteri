@@ -240,7 +240,7 @@ impl ArenaBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn simple_open_close() {
         let mut builder = ArenaBuilder::new("# Hello".to_string());

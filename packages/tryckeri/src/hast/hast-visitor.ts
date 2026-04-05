@@ -37,7 +37,6 @@ export type EstreeProgram = Record<string, any>;
 /** Maps HastNode objects to their arena node IDs without Object.defineProperty overhead. */
 const nodeIdMap: WeakMap<object, number> = new WeakMap();
 
-
 /** Attach `parseExpression()` to an MDX expression node. */
 function attachParseExpression(node: HastNode): void {
   Object.defineProperty(node, "parseExpression", {
@@ -223,8 +222,12 @@ export interface HastVisitorInstance {
   comment?: HastVisitorFn<Comment>;
   raw?: HastVisitorFn<HastRaw>;
   doctype?: HastVisitorFn<Doctype>;
-  mdxFlowExpression?: HastVisitorFn<MdxFlowExpressionHast & { parseExpression(): EstreeProgram | null }>;
-  mdxTextExpression?: HastVisitorFn<MdxTextExpressionHast & { parseExpression(): EstreeProgram | null }>;
+  mdxFlowExpression?: HastVisitorFn<
+    MdxFlowExpressionHast & { parseExpression(): EstreeProgram | null }
+  >;
+  mdxTextExpression?: HastVisitorFn<
+    MdxTextExpressionHast & { parseExpression(): EstreeProgram | null }
+  >;
   mdxjsEsm?: HastVisitorFn<MdxjsEsmHast>;
 }
 
@@ -349,20 +352,37 @@ class WalkElement {
 
   get properties(): Record<string, string | boolean | string[]> {
     const val = decodeProperties(this._view, this._buf, this._propsPos);
-    Object.defineProperty(this, "properties", { value: val, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "properties", {
+      value: val,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
     return val;
   }
 
   get children(): HastNode[] {
     const val = this._resolver.materializeChildren(this._childIds);
-    Object.defineProperty(this, "children", { value: val, writable: true, enumerable: true, configurable: true });
+    Object.defineProperty(this, "children", {
+      value: val,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
     return val;
   }
 
   get data(): Record<string, unknown> | undefined {
     if (this._dataPos < 0) return undefined;
-    const val = JSON.parse(textDecoder.decode(this._buf.subarray(this._dataPos, this._dataPos + this._dataLen))) as Record<string, unknown>;
-    Object.defineProperty(this, "data", { value: val, writable: true, enumerable: true, configurable: true });
+    const val = JSON.parse(
+      textDecoder.decode(this._buf.subarray(this._dataPos, this._dataPos + this._dataLen)),
+    ) as Record<string, unknown>;
+    Object.defineProperty(this, "data", {
+      value: val,
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    });
     return val;
   }
 }
@@ -579,7 +599,12 @@ class LazyChildResolver {
         get() {
           const json = napiGetNodeData(handle, id);
           const val = json ? (JSON.parse(json) as Record<string, unknown>) : null;
-          Object.defineProperty(this, "data", { value: val, writable: true, enumerable: true, configurable: true });
+          Object.defineProperty(this, "data", {
+            value: val,
+            writable: true,
+            enumerable: true,
+            configurable: true,
+          });
           return val;
         },
         configurable: true,
@@ -646,7 +671,9 @@ function dispatchMatches(
 ): { nodeId: number; promise: Promise<HastNode | void>; originalNode: HastNode }[] | null {
   const matchView = new DataView(matchBuf.buffer, matchBuf.byteOffset, matchBuf.byteLength);
   const matchCount = matchView.getUint32(0, true);
-  let deferred: { nodeId: number; promise: Promise<HastNode | void>; originalNode: HastNode }[] | null = null;
+  let deferred:
+    | { nodeId: number; promise: Promise<HastNode | void>; originalNode: HastNode }[]
+    | null = null;
 
   for (let i = 0; i < matchCount; i++) {
     const indexBase = 4 + i * 12;
@@ -711,15 +738,18 @@ export function visitHastHandle(
   const deferred = dispatchMatches(walkHandle(handle, rustSubs), subs, ctx, returnBuffer, resolver);
 
   if (deferred) {
-    return Promise.all(deferred.map((d) => d.promise.then((result) => ({ nodeId: d.nodeId, result, originalNode: d.originalNode }))))
-      .then((results) => {
-        for (const { nodeId, result, originalNode } of results) {
-          if (result != null && result !== originalNode) {
-            returnBuffer.replaceRawJson(nodeId, JSON.stringify(markHast(result)));
-          }
+    return Promise.all(
+      deferred.map((d) =>
+        d.promise.then((result) => ({ nodeId: d.nodeId, result, originalNode: d.originalNode })),
+      ),
+    ).then((results) => {
+      for (const { nodeId, result, originalNode } of results) {
+        if (result != null && result !== originalNode) {
+          returnBuffer.replaceRawJson(nodeId, JSON.stringify(markHast(result)));
         }
-        applyMutations(handle, returnBuffer, ctx);
-      });
+      }
+      applyMutations(handle, returnBuffer, ctx);
+    });
   }
 
   applyMutations(handle, returnBuffer, ctx);

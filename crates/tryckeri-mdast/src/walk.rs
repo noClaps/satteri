@@ -34,8 +34,8 @@
 //! [lang_len: u16][lang: utf8...][meta_len: u16][meta: utf8...][value_len: u32][value: utf8...]
 //! ```
 
-use tryckeri_arena::StringRef;
 use tryckeri_arena::ReadArena;
+use tryckeri_arena::StringRef;
 
 /// A single subscription: match nodes of a given type, optionally filtered
 /// by tag name (for HAST element nodes).

@@ -68,7 +68,7 @@ mod tests {
     fn nested_elements_with_text() {
         let mut b = ArenaBuilder::new(String::new());
         b.open_node_raw(0); // root
-        // element
+                            // element
         b.open_node_raw(1);
         {
             // text "Hello "
@@ -96,7 +96,7 @@ mod tests {
     fn skips_comments_and_raw() {
         let mut b = ArenaBuilder::new(String::new());
         b.open_node_raw(0); // root
-        // text
+                            // text
         b.open_node_raw(2);
         let td = make_text_type_data(&mut b, "a");
         b.set_data_current(&td);
@@ -125,7 +125,7 @@ mod tests {
     fn includes_mdx_expressions() {
         let mut b = ArenaBuilder::new(String::new());
         b.open_node_raw(0); // root
-        // text
+                            // text
         b.open_node_raw(2);
         let td = make_text_type_data(&mut b, "Hello ");
         b.set_data_current(&td);

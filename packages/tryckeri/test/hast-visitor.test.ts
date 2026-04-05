@@ -1,9 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { HastReader } from "../src/hast/hast-reader.js";
-import {
-  visitHastHandle,
-  resolveSubscriptions,
-} from "../src/hast/hast-visitor.js";
+import { visitHastHandle, resolveSubscriptions } from "../src/hast/hast-visitor.js";
 import { materializeHastTree } from "../src/hast/hast-materializer.js";
 import {
   createHastHandle,
@@ -151,7 +148,12 @@ describe("visitHastHandle — mutations", () => {
       element: {
         filter: ["h1"],
         visit(node: HastNode, ctx: HastVisitorContext) {
-          ctx.insertAfter(node, { type: "element", tagName: "hr", properties: {}, children: [] } as unknown as HastNode);
+          ctx.insertAfter(node, {
+            type: "element",
+            tagName: "hr",
+            properties: {},
+            children: [],
+          } as unknown as HastNode);
         },
       },
     };
@@ -167,7 +169,12 @@ describe("visitHastHandle — mutations", () => {
       element: {
         filter: ["h1"],
         visit(node: HastNode, ctx: HastVisitorContext) {
-          ctx.wrapNode(node, { type: "element", tagName: "div", properties: {}, children: [] } as unknown as HastNode);
+          ctx.wrapNode(node, {
+            type: "element",
+            tagName: "div",
+            properties: {},
+            children: [],
+          } as unknown as HastNode);
         },
       },
     };
@@ -199,7 +206,12 @@ describe("visitHastHandle — mutations", () => {
       element: {
         filter: ["h1"],
         visit(node: HastNode, ctx: HastVisitorContext) {
-          ctx.insertBefore(node, { type: "element", tagName: "hr", properties: {}, children: [] } as unknown as HastNode);
+          ctx.insertBefore(node, {
+            type: "element",
+            tagName: "hr",
+            properties: {},
+            children: [],
+          } as unknown as HastNode);
         },
       },
     };
@@ -231,7 +243,12 @@ describe("visitHastHandle — mutations", () => {
       element: {
         filter: ["h1"],
         visit(node: HastNode, ctx: HastVisitorContext) {
-          ctx.replaceNode(node, { type: "element", tagName: "h3", properties: {}, children: [{ type: "text", value: "Replaced" }] } as unknown as HastNode);
+          ctx.replaceNode(node, {
+            type: "element",
+            tagName: "h3",
+            properties: {},
+            children: [{ type: "text", value: "Replaced" }],
+          } as unknown as HastNode);
         },
       },
     };
@@ -260,7 +277,6 @@ describe("visitHastHandle — mutations", () => {
     const html = renderHandle(handle);
     expect(html).toContain("<h1>Hello World</h1>");
   });
-
 });
 
 // ---------------------------------------------------------------------------
@@ -331,7 +347,7 @@ describe("visitHastHandle — context", () => {
   });
 
   test("code fence data.lang and data.meta are available on code elements", () => {
-    const handle = createHastHandle('```typescript {highlight=[1]}\nconst x = 1;\n```');
+    const handle = createHastHandle("```typescript {highlight=[1]}\nconst x = 1;\n```");
     const source = "```typescript {highlight=[1]}\nconst x = 1;\n```";
     let lang: string | undefined;
     let meta: string | undefined;
@@ -353,7 +369,7 @@ describe("visitHastHandle — context", () => {
   });
 
   test("code fence data flows through child resolution", () => {
-    const handle = createHastHandle('```js\ncode\n```');
+    const handle = createHastHandle("```js\ncode\n```");
     const source = "```js\ncode\n```";
     let childLang: string | undefined;
     const plugin = {

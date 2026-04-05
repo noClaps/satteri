@@ -3,8 +3,8 @@ use crate::context::{Diagnostic, PluginContext};
 use crate::data::{DataMap, TypedDataMap};
 use crate::plugin::{NodeView, Plugin, VisitResult};
 use crate::typed_nodes::*;
-use tryckeri_mdast::rebuild::{rebuild, Patch};
 use tryckeri_arena::{Arena, ArenaBuilder};
+use tryckeri_mdast::rebuild::{rebuild, Patch};
 use tryckeri_mdast::MdastNodeType;
 
 /// Result of running plugins against an arena.

@@ -29,10 +29,7 @@ function propsToRecord(props: HastProperty[]): Record<string, string | boolean |
 /**
  * Materialize a single HAST node from a binary buffer as a lazy JS object.
  */
-export function materializeHastNode(
-  reader: HastReader,
-  nodeId: number,
-): HastNode {
+export function materializeHastNode(reader: HastReader, nodeId: number): HastNode {
   const nodeType = reader.getNodeType(nodeId);
 
   let typeName: string;

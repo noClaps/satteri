@@ -21,6 +21,8 @@ use oxc_ast::ast::{
 use oxc_span::{Atom, SPAN, Span};
 use oxc_syntax::node::NodeId;
 use rustc_hash::FxHashSet;
+use tryckeri_arena::ReadArena;
+use tryckeri_arena::mdx_types::{self as message, Location, MdxExpressionKind};
 use tryckeri_hast::codec::{
     decode_element_prop, decode_element_prop_count, decode_element_tag, decode_text_data,
 };
@@ -30,8 +32,6 @@ use tryckeri_hast::node_types::{
     MDX_ATTR_BOOLEAN_PROP, MDX_ATTR_EXPRESSION_PROP, MDX_ATTR_LITERAL_PROP, MDX_ATTR_SPREAD,
     PROP_BOOL_TRUE, PROP_COMMA_SEP, PROP_SPACE_SEP, PROP_STRING,
 };
-use tryckeri_arena::ReadArena;
-use tryckeri_arena::mdx_types::{self as message, Location, MdxExpressionKind};
 use tryckeri_mdast::{decode_mdx_jsx_attr, decode_mdx_jsx_attr_count, decode_mdx_jsx_element_name};
 
 /// Get a Span from a HAST binary node's position data.

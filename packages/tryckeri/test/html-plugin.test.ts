@@ -10,10 +10,7 @@ import {
   getHandleSource,
 } from "../index.js";
 import { HastReader } from "../src/hast/hast-reader.js";
-import {
-  visitHastHandle,
-  resolveSubscriptions,
-} from "../src/hast/hast-visitor.js";
+import { visitHastHandle, resolveSubscriptions } from "../src/hast/hast-visitor.js";
 import { compileMarkdownToHtml, defineMdastPlugin } from "../src/index.js";
 import type { MdastNode } from "../src/types.js";
 import type { HastNode } from "../src/hast/hast-materializer.js";

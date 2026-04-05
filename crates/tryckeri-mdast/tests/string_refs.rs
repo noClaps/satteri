@@ -1,7 +1,9 @@
 //! Integration tests for StringRef and get_str.
 
-use tryckeri_arena::{decode_string_ref_data, encode_string_ref_data, Arena, ArenaBuilder, StringRef};
-use tryckeri_mdast::{MdastNodeType};
+use tryckeri_arena::{
+    decode_string_ref_data, encode_string_ref_data, Arena, ArenaBuilder, StringRef,
+};
+use tryckeri_mdast::MdastNodeType;
 
 #[test]
 fn store_and_read_back_string_ref() {

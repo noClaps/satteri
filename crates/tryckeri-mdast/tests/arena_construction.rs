@@ -1,7 +1,7 @@
 //! Integration tests for arena construction.
 
 use tryckeri_arena::{Arena, ArenaBuilder};
-use tryckeri_mdast::{MdastNodeType};
+use tryckeri_mdast::MdastNodeType;
 
 #[test]
 fn heading_with_text_child() {

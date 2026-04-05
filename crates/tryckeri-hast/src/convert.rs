@@ -1,9 +1,12 @@
 //! Convert an MDAST arena to a HAST arena.
 
-use tryckeri_arena::{
-    decode_string_ref_data, Arena, ArenaBuilder, ReadArena, StringRef,
+use tryckeri_arena::{decode_string_ref_data, Arena, ArenaBuilder, ReadArena, StringRef};
+use tryckeri_mdast::{
+    decode_code_data, decode_definition_data, decode_expression_data, decode_heading_data,
+    decode_image_data, decode_link_data, decode_list_data, decode_list_item_data, decode_math_data,
+    decode_mdx_jsx_attr, decode_mdx_jsx_attr_count, decode_mdx_jsx_element_name,
+    decode_reference_data, MdastNodeType,
 };
-use tryckeri_mdast::{decode_code_data, decode_definition_data, decode_expression_data, decode_heading_data, decode_image_data, decode_link_data, decode_list_data, decode_list_item_data, decode_math_data, decode_mdx_jsx_attr, decode_mdx_jsx_attr_count, decode_mdx_jsx_element_name, decode_reference_data, MdastNodeType};
 
 use crate::codec::encode_element_data_into;
 use crate::node_types::*;
@@ -49,8 +52,13 @@ fn collect_definitions(view: &dyn ReadArena) -> Vec<Definition> {
     defs
 }
 
-fn find_def<'a>(defs: &'a [Definition], view: &dyn ReadArena, identifier: &str) -> Option<&'a Definition> {
-    defs.iter().find(|d| view.get_str(d.identifier) == identifier)
+fn find_def<'a>(
+    defs: &'a [Definition],
+    view: &dyn ReadArena,
+    identifier: &str,
+) -> Option<&'a Definition> {
+    defs.iter()
+        .find(|d| view.get_str(d.identifier) == identifier)
 }
 
 /// Pre-built property data: refs already interned in the builder's string pool.
@@ -119,13 +127,17 @@ fn add_void_element_with_props(builder: &mut ArenaBuilder, tag: &str, props: &[P
 fn add_text_node(builder: &mut ArenaBuilder, text: &str) {
     let text_ref = builder.alloc_string(text);
     let leaf_id = builder.add_leaf_raw(HAST_TEXT);
-    builder.arena_mut().set_type_data(leaf_id, &text_ref.as_bytes());
+    builder
+        .arena_mut()
+        .set_type_data(leaf_id, &text_ref.as_bytes());
 }
 
 fn add_raw_node(builder: &mut ArenaBuilder, html: &str) {
     let html_ref = builder.alloc_string(html);
     let leaf_id = builder.add_leaf_raw(HAST_RAW);
-    builder.arena_mut().set_type_data(leaf_id, &html_ref.as_bytes());
+    builder
+        .arena_mut()
+        .set_type_data(leaf_id, &html_ref.as_bytes());
 }
 
 /// Encode lang and meta as a JSON object for the code element's node_data.

@@ -61,7 +61,8 @@ pub fn compile_mdx(source: String, options: Option<JsMdxOptions>) -> Result<Stri
 /// Parse Markdown source and return HTML string directly.
 #[napi]
 pub fn parse_to_html(source: String) -> Result<String> {
-    let (arena, _) = tryckeri_pulldown_cmark::parse(&source, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
+    let (arena, _) =
+        tryckeri_pulldown_cmark::parse(&source, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
     Ok(tryckeri_hast::mdast_to_html(&arena))
 }
 
@@ -98,7 +99,8 @@ pub struct JsSubscription {
 /// Parse markdown source into an MDAST arena handle.
 #[napi]
 pub fn create_mdast_handle(source: String) -> Result<ArenaHandle> {
-    let (mut arena, _) = tryckeri_pulldown_cmark::parse(&source, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
+    let (mut arena, _) =
+        tryckeri_pulldown_cmark::parse(&source, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
     arena.mdx = false;
     Ok(External::new(Mutex::new(arena)))
 }
@@ -106,7 +108,8 @@ pub fn create_mdast_handle(source: String) -> Result<ArenaHandle> {
 /// Parse MDX source into an MDAST arena handle.
 #[napi]
 pub fn create_mdx_mdast_handle(source: String) -> Result<ArenaHandle> {
-    let (mut arena, _) = tryckeri_pulldown_cmark::parse(&source, tryckeri_pulldown_cmark::MDX_OPTIONS);
+    let (mut arena, _) =
+        tryckeri_pulldown_cmark::parse(&source, tryckeri_pulldown_cmark::MDX_OPTIONS);
     arena.mdx = true;
     Ok(External::new(Mutex::new(arena)))
 }
@@ -215,7 +218,8 @@ pub fn apply_commands_and_convert_to_hast_handle(
 /// The arena stays in Rust memory — no buffer is copied to JS.
 #[napi]
 pub fn create_hast_handle(source: String) -> Result<ArenaHandle> {
-    let (mdast, _) = tryckeri_pulldown_cmark::parse(&source, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
+    let (mdast, _) =
+        tryckeri_pulldown_cmark::parse(&source, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
     let mut hast = tryckeri_hast::mdast_arena_to_hast_arena(&mdast);
     hast.mdx = false;
     Ok(External::new(Mutex::new(hast)))

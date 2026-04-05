@@ -4,11 +4,19 @@ import {
   resolveMdastSubscriptions,
   type MdastVisitorContext,
 } from "../src/mdast/mdast-visitor.js";
-import { createMdastHandle, getHandleSource, applyCommandsAndConvertToHastHandle, renderHandle } from "../index.js";
+import {
+  createMdastHandle,
+  getHandleSource,
+  applyCommandsAndConvertToHastHandle,
+  renderHandle,
+} from "../index.js";
 import type { MdastNode } from "../src/types.js";
 
 /** Helper: run a visitor on markdown, apply mutations, convert to HAST, render HTML. */
-function visitAndRender(md: string, plugin: Parameters<typeof resolveMdastSubscriptions>[0]): string {
+function visitAndRender(
+  md: string,
+  plugin: Parameters<typeof resolveMdastSubscriptions>[0],
+): string {
   const handle = createMdastHandle(md);
   const source = getHandleSource(handle);
   const subs = resolveMdastSubscriptions(plugin);
@@ -260,7 +268,10 @@ test("context.wrapNode() wraps a node in a parent", () => {
 test("context.replaceNode() replaces a node via context method", () => {
   const html = visitAndRender("# Hello\n\nWorld", {
     heading(node: MdastNode, ctx: MdastVisitorContext) {
-      ctx.replaceNode(node, { type: "paragraph", children: [{ type: "text", value: "Replaced" }] } as MdastNode);
+      ctx.replaceNode(node, {
+        type: "paragraph",
+        children: [{ type: "text", value: "Replaced" }],
+      } as MdastNode);
     },
   });
   expect(html).not.toContain("<h1>");

@@ -182,7 +182,13 @@ export class MdastVisitorContext {
   }
 }
 
-type MdastVisitorResult = MdastNode | { raw: string } | { rawHtml: string } | undefined | null | void;
+type MdastVisitorResult =
+  | MdastNode
+  | { raw: string }
+  | { rawHtml: string }
+  | undefined
+  | null
+  | void;
 
 type MdastVisitorFn<N extends MdastNode = MdastNode> = (
   node: N,
@@ -265,7 +271,6 @@ function mergeAndReset(
 export type MdastHandle = any;
 
 const textDecoder = new TextDecoder("utf-8");
-
 
 /** Build name→nodeType map from TYPE_NAMES (reverse of TYPE_NAMES). */
 const NAME_TO_TYPE: Record<string, number> = {};
@@ -691,7 +696,9 @@ export function visitMdastHandle(
   const matchView = new DataView(matchBuf.buffer, matchBuf.byteOffset, matchBuf.byteLength);
   const matchCount = ru32(matchView, 0);
 
-  let deferred: { nodeId: number; promise: Promise<MdastVisitorResult>; originalNode: MdastNode }[] | null = null;
+  let deferred:
+    | { nodeId: number; promise: Promise<MdastVisitorResult>; originalNode: MdastNode }[]
+    | null = null;
 
   for (let i = 0; i < matchCount; i++) {
     const indexBase = 4 + i * 12;
@@ -700,7 +707,15 @@ export function visitMdastHandle(
     const dataOffset = ru32(matchView, indexBase + 6);
 
     const sub = subs[subIndex]!;
-    const node = readMdastMatchedNode(matchView, matchBuf, dataOffset, nodeId, sub.nodeType, dirtyData, resolver);
+    const node = readMdastMatchedNode(
+      matchView,
+      matchBuf,
+      dataOffset,
+      nodeId,
+      sub.nodeType,
+      dirtyData,
+      resolver,
+    );
     const result = sub.visitFn.call(plugin, node, context);
 
     if (result instanceof Promise) {
@@ -712,13 +727,16 @@ export function visitMdastHandle(
   }
 
   if (deferred) {
-    return Promise.all(deferred.map((d) => d.promise.then((r) => ({ nodeId: d.nodeId, result: r, originalNode: d.originalNode }))))
-      .then((results) => {
-        for (const { nodeId, result, originalNode } of results) {
-          applyMdastVisitResult(result, nodeId, returnBuffer, originalNode);
-        }
-        return finalizeMdastVisit(handle, context, returnBuffer, dirtyData);
-      });
+    return Promise.all(
+      deferred.map((d) =>
+        d.promise.then((r) => ({ nodeId: d.nodeId, result: r, originalNode: d.originalNode })),
+      ),
+    ).then((results) => {
+      for (const { nodeId, result, originalNode } of results) {
+        applyMdastVisitResult(result, nodeId, returnBuffer, originalNode);
+      }
+      return finalizeMdastVisit(handle, context, returnBuffer, dirtyData);
+    });
   }
 
   return finalizeMdastVisit(handle, context, returnBuffer, dirtyData);

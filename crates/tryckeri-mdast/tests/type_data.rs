@@ -1,7 +1,11 @@
 //! Integration tests for type-specific data codec.
 
 use tryckeri_arena::{ArenaBuilder, StringRef};
-use tryckeri_mdast::{decode_code_data, decode_heading_data, decode_link_data, decode_list_data, encode_code_data, encode_heading_data, encode_link_data, encode_list_data, encode_table_data, ColumnAlign, MdastNodeType};
+use tryckeri_mdast::{
+    decode_code_data, decode_heading_data, decode_link_data, decode_list_data, encode_code_data,
+    encode_heading_data, encode_link_data, encode_list_data, encode_table_data, ColumnAlign,
+    MdastNodeType,
+};
 
 #[test]
 fn encode_decode_heading_data() {

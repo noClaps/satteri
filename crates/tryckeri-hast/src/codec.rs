@@ -17,7 +17,11 @@ pub fn encode_element_data(tag_name: StringRef, props: &[(StringRef, u8, StringR
 }
 
 /// Write element data directly into a target buffer (zero-alloc).
-pub fn encode_element_data_into(tag_name: StringRef, props: &[(StringRef, u8, StringRef)], out: &mut Vec<u8>) {
+pub fn encode_element_data_into(
+    tag_name: StringRef,
+    props: &[(StringRef, u8, StringRef)],
+    out: &mut Vec<u8>,
+) {
     out.extend_from_slice(&tag_name.as_bytes());
     out.extend_from_slice(&(props.len() as u32).to_le_bytes());
     out.extend_from_slice(&0u32.to_le_bytes());

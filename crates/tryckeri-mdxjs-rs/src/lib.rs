@@ -87,7 +87,8 @@ pub fn compile(value: &str, options: &Options) -> Result<String, message::Messag
     } else {
         value
     };
-    let (arena, mdx_errors) = tryckeri_pulldown_cmark::parse(value, tryckeri_pulldown_cmark::MDX_OPTIONS);
+    let (arena, mdx_errors) =
+        tryckeri_pulldown_cmark::parse(value, tryckeri_pulldown_cmark::MDX_OPTIONS);
     if let Some((offset, msg)) = mdx_errors.first() {
         let point = byte_offset_to_point(value, *offset);
         return Err(message::Message {

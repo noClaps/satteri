@@ -181,7 +181,6 @@ describe("compileMarkdownToHtml", () => {
     expect(html).toContain('id="main-title"');
   });
 
-
   test("no mutations — fast Rust path still works", () => {
     const noopPlugin = defineHastPlugin({
       name: "noop",
@@ -723,7 +722,6 @@ describe("compileMdxToJs", () => {
     expect(js).toContain("async-highlighted");
   });
 
-
   test("sync MDAST plugins return string not Promise", () => {
     const plugin = defineMdastPlugin({
       name: "sync-mdast",
@@ -859,7 +857,11 @@ describe("compileMdxToJs", () => {
       name: "uppercase-text",
       createOnce: () => ({
         text(node: HastNode, ctx: HastVisitorContext) {
-          ctx.setProperty(node, "value", (node as unknown as { value: string }).value.toUpperCase());
+          ctx.setProperty(
+            node,
+            "value",
+            (node as unknown as { value: string }).value.toUpperCase(),
+          );
         },
       }),
     });
@@ -867,5 +869,4 @@ describe("compileMdxToJs", () => {
     const html = compileMarkdownToHtml("hello world", { hastPlugins: [plugin] });
     expect(html).toContain("HELLO WORLD");
   });
-
 });

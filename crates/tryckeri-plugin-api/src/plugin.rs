@@ -105,11 +105,7 @@ pub trait Plugin: Send + Sync {
     }
 
     /// Optional: full arena access for wholesale rewrites. Return None to leave unchanged.
-    fn transform_root(
-        &mut self,
-        _arena: &Arena,
-        _ctx: &mut PluginContext,
-    ) -> Option<Arena> {
+    fn transform_root(&mut self, _arena: &Arena, _ctx: &mut PluginContext) -> Option<Arena> {
         None
     }
 }

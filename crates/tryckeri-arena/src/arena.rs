@@ -34,7 +34,12 @@ impl Arena {
     }
 
     /// Create an arena with pre-allocated capacity.
-    pub fn with_capacity(source: String, node_count: usize, children_count: usize, type_data_len: usize) -> Self {
+    pub fn with_capacity(
+        source: String,
+        node_count: usize,
+        children_count: usize,
+        type_data_len: usize,
+    ) -> Self {
         Arena {
             nodes: Vec::with_capacity(node_count),
             children: Vec::with_capacity(children_count),
@@ -98,7 +103,10 @@ impl Arena {
     pub fn begin_type_data(&mut self, node_id: u32) -> TypeDataWriter {
         let offset = self.type_data.len() as u32;
         self.nodes[node_id as usize].data_offset = offset;
-        TypeDataWriter { node_id, start: offset }
+        TypeDataWriter {
+            node_id,
+            start: offset,
+        }
     }
 
     /// Finish writing variable-length type data started by `begin_type_data`.

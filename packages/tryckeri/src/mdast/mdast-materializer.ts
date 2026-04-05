@@ -165,8 +165,6 @@ export function materializeNode(reader: ArenaReader, nodeId: number): MdastNode 
     enumerable: false,
   });
 
-
-
   // Type-specific lazy properties
   addTypeProperties(node, reader, nodeId, nodeType);
 

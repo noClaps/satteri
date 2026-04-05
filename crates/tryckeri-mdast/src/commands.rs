@@ -31,9 +31,9 @@
 //!   0x12  SERDE_JSON       [len: u32][utf8...]
 
 use crate::codec::*;
-use tryckeri_arena::StringRef;
-use crate::MdastNodeType;
 use crate::rebuild::Patch;
+use crate::MdastNodeType;
+use tryckeri_arena::StringRef;
 use tryckeri_arena::{Arena, ArenaBuilder};
 
 use serde::Deserialize;

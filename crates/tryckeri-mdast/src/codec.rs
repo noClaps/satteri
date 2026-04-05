@@ -349,7 +349,15 @@ pub fn encode_code_data(
     value: StringRef,
     fence_char: u8,
 ) -> Vec<u8> {
-    CodeData { lang, meta, value, fence_char, _pad: [0; 3] }.to_bytes().to_vec()
+    CodeData {
+        lang,
+        meta,
+        value,
+        fence_char,
+        _pad: [0; 3],
+    }
+    .to_bytes()
+    .to_vec()
 }
 
 pub fn decode_code_data(bytes: &[u8]) -> CodeData {
@@ -357,7 +365,14 @@ pub fn decode_code_data(bytes: &[u8]) -> CodeData {
 }
 
 pub fn encode_list_data(ordered: bool, start: u32, spread: bool) -> Vec<u8> {
-    ListData { start, ordered, spread, _pad: [0; 2] }.to_bytes().to_vec()
+    ListData {
+        start,
+        ordered,
+        spread,
+        _pad: [0; 2],
+    }
+    .to_bytes()
+    .to_vec()
 }
 
 pub fn decode_list_data(bytes: &[u8]) -> ListData {
@@ -386,7 +401,14 @@ pub fn encode_reference_data(
     label: StringRef,
     reference_kind: u8,
 ) -> Vec<u8> {
-    ReferenceData { identifier, label, reference_kind, _pad: [0; 3] }.to_bytes().to_vec()
+    ReferenceData {
+        identifier,
+        label,
+        reference_kind,
+        _pad: [0; 3],
+    }
+    .to_bytes()
+    .to_vec()
 }
 
 pub fn decode_reference_data(bytes: &[u8]) -> ReferenceData {
@@ -394,7 +416,9 @@ pub fn decode_reference_data(bytes: &[u8]) -> ReferenceData {
 }
 
 pub fn encode_footnote_definition_data(identifier: StringRef, label: StringRef) -> Vec<u8> {
-    FootnoteDefinitionData { identifier, label }.to_bytes().to_vec()
+    FootnoteDefinitionData { identifier, label }
+        .to_bytes()
+        .to_vec()
 }
 
 pub fn encode_mdx_jsx_element_data(
@@ -450,7 +474,14 @@ pub fn encode_definition_data(
     identifier: StringRef,
     label: StringRef,
 ) -> Vec<u8> {
-    DefinitionData { url, title, identifier, label }.to_bytes().to_vec()
+    DefinitionData {
+        url,
+        title,
+        identifier,
+        label,
+    }
+    .to_bytes()
+    .to_vec()
 }
 
 pub fn decode_definition_data(bytes: &[u8]) -> DefinitionData {
@@ -494,5 +525,4 @@ mod tests {
         assert_eq!(d.url, url);
         assert_eq!(d.title, title);
     }
-
 }

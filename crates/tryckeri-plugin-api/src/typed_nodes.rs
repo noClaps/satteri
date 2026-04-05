@@ -1,5 +1,5 @@
-use tryckeri_mdast::codec::*;
 use tryckeri_arena::{Arena, ArenaNode};
+use tryckeri_mdast::codec::*;
 use tryckeri_mdast::MdastNodeType;
 
 /// Position info extracted from an ArenaNode

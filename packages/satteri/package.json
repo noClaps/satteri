@@ -1,0 +1,60 @@
+{
+  "name": "satteri",
+  "version": "0.1.24",
+  "description": "High-performance Markdown processing",
+  "files": [
+    "dist",
+    "browser.js",
+    "index.js",
+    "index.d.ts",
+    "satteri_napi.wasi.cjs",
+    "satteri_napi.wasi-browser.js",
+    "wasi-worker.mjs",
+    "wasi-worker-browser.js",
+    "satteri_napi.linux-x64-gnu.node"
+  ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js",
+    "./hast": "./dist/hast-types.js",
+    "./mdast": "./dist/mdast-types.js"
+  },
+  "scripts": {
+    "build:native": "napi build --manifest-path ../../crates/satteri-napi-binding/Cargo.toml --output-dir . --platform --release --esm",
+    "build:native:debug": "napi build --manifest-path ../../crates/satteri-napi-binding/Cargo.toml --output-dir . --platform --esm",
+    "build:ts": "tsc --project tsconfig.build.json",
+    "build": "pnpm build:native && pnpm build:ts",
+    "artifacts": "napi create-npm-dirs && napi artifacts && napi version",
+    "dev": "tsc --watch",
+    "vitest": "vitest",
+    "test": "vitest run",
+    "bench": "vitest bench --run"
+  },
+  "dependencies": {
+    "@types/hast": "^3.0.4",
+    "@types/mdast": "^4.0.4",
+    "@types/unist": "^3.0.3",
+    "mdast-util-mdx-expression": "^2.0.1",
+    "mdast-util-mdx-jsx": "^3.2.0",
+    "mdast-util-mdxjs-esm": "^2.0.1"
+  },
+  "devDependencies": {
+    "@emnapi/runtime": "^1.9.1",
+    "@napi-rs/wasm-runtime": "^1.1.2",
+    "@types/node": "^25.5.0",
+    "remark-frontmatter": "^5.0.0",
+    "vitest": "^4"
+  },
+  "napi": {
+    "binaryName": "satteri_napi",
+    "packageName": "@bruits/satteri",
+    "targets": [
+      "x86_64-unknown-linux-gnu",
+      "x86_64-apple-darwin",
+      "aarch64-apple-darwin",
+      "x86_64-pc-windows-msvc",
+      "wasm32-wasip1-threads"
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+[package]
+name = "satteri-hast"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+satteri-arena = { path = "../satteri-arena" }
+satteri-mdast = { path = "../satteri-mdast" }
+pulldown-cmark-escape = "0.11"
+
+[dev-dependencies]
+satteri-pulldown-cmark = { path = "../satteri-pulldown-cmark" }

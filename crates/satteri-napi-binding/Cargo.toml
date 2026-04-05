@@ -1,0 +1,20 @@
+[package]
+name = "satteri-napi"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+satteri-arena = { path = "../satteri-arena" }
+satteri-mdast = { path = "../satteri-mdast" }
+satteri-hast = { path = "../satteri-hast" }
+satteri-mdxjs = { path = "../satteri-mdxjs-rs" }
+satteri-pulldown-cmark = { path = "../satteri-pulldown-cmark" }
+napi = { version = "3", features = ["napi8"] }
+napi-derive = "3"
+
+[build-dependencies]
+napi-build = "2"

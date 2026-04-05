@@ -7,8 +7,8 @@ flamegraph.svg
 dist
 
 # napi-rs generated platform packages
-packages/tryckeri/npm/
-packages/tryckeri/bench/docs.ts
+packages/satteri/npm/
+packages/satteri/bench/docs.ts
 
 .DS_Store
 .claude

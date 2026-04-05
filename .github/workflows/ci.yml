@@ -94,12 +94,12 @@ jobs:
 
       - name: Build NAPI binding
         run: pnpm run build:native:debug
-        working-directory: packages/tryckeri
+        working-directory: packages/satteri
 
       - name: Build TypeScript
         run: pnpm run build:ts
-        working-directory: packages/tryckeri
+        working-directory: packages/satteri
 
       - name: Test
         run: pnpm test
-        working-directory: packages/tryckeri
+        working-directory: packages/satteri

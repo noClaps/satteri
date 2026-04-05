@@ -1,7 +1,7 @@
 /// End-to-end Rust pipeline benchmarks using divan.
 ///
 /// Covers the full stack: parse → HAST → HTML and MDX → JS.
-/// Run with: `cargo bench -p tryckeri-bench`
+/// Run with: `cargo bench -p satteri-bench`
 const MARKDOWN: &str = include_str!("../fixtures/markdown.md");
 
 /// A short MDX snippet representative of real-world usage.
@@ -31,16 +31,16 @@ fn main() {
 /// Parse Markdown source into an Arena.
 #[divan::bench]
 fn parse(bencher: divan::Bencher) {
-    let opts = tryckeri_pulldown_cmark::DEFAULT_OPTIONS;
-    bencher.bench(|| tryckeri_pulldown_cmark::parse(MARKDOWN, opts));
+    let opts = satteri_pulldown_cmark::DEFAULT_OPTIONS;
+    bencher.bench(|| satteri_pulldown_cmark::parse(MARKDOWN, opts));
 }
 
 /// Parse Markdown source and serialise to a flat binary buffer.
 #[divan::bench]
 fn parse_to_buffer(bencher: divan::Bencher) {
-    let opts = tryckeri_pulldown_cmark::DEFAULT_OPTIONS;
+    let opts = satteri_pulldown_cmark::DEFAULT_OPTIONS;
     bencher.bench(|| {
-        let (arena, _) = tryckeri_pulldown_cmark::parse(MARKDOWN, opts);
+        let (arena, _) = satteri_pulldown_cmark::parse(MARKDOWN, opts);
         arena.to_raw_buffer()
     });
 }
@@ -52,7 +52,7 @@ fn parse_to_buffer(bencher: divan::Bencher) {
 /// pulldown-cmark: parse to events (GFM + Math extensions).
 #[divan::bench]
 fn pulldown_parse_events(bencher: divan::Bencher) {
-    use tryckeri_pulldown_cmark::{Options, Parser};
+    use satteri_pulldown_cmark::{Options, Parser};
 
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
@@ -71,7 +71,7 @@ fn pulldown_parse_events(bencher: divan::Bencher) {
 /// pulldown-cmark: parse to events with MDX enabled.
 #[divan::bench]
 fn pulldown_parse_events_mdx(bencher: divan::Bencher) {
-    use tryckeri_pulldown_cmark::{Options, Parser};
+    use satteri_pulldown_cmark::{Options, Parser};
 
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
@@ -91,7 +91,7 @@ fn pulldown_parse_events_mdx(bencher: divan::Bencher) {
 /// pulldown-cmark: parse + render to HTML string.
 #[divan::bench]
 fn pulldown_to_html(bencher: divan::Bencher) {
-    use tryckeri_pulldown_cmark::{html, Options, Parser};
+    use satteri_pulldown_cmark::{html, Options, Parser};
 
     let opts = Options::ENABLE_TABLES
         | Options::ENABLE_FOOTNOTES
@@ -110,7 +110,7 @@ fn pulldown_to_html(bencher: divan::Bencher) {
 /// pulldown-cmark MDX: parse the MDX snippet.
 #[divan::bench]
 fn pulldown_mdx_parse(bencher: divan::Bencher) {
-    use tryckeri_pulldown_cmark::{Options, Parser};
+    use satteri_pulldown_cmark::{Options, Parser};
 
     let opts = Options::ENABLE_TABLES | Options::ENABLE_MATH | Options::ENABLE_MDX;
 
@@ -129,10 +129,10 @@ fn pulldown_mdx_parse(bencher: divan::Bencher) {
 /// Full pipeline: Markdown source → Arena → HTML string.
 #[divan::bench]
 fn full_pipeline_to_html(bencher: divan::Bencher) {
-    let opts = tryckeri_pulldown_cmark::DEFAULT_OPTIONS;
+    let opts = satteri_pulldown_cmark::DEFAULT_OPTIONS;
     bencher.bench(|| {
-        let (arena, _) = tryckeri_pulldown_cmark::parse(MARKDOWN, opts);
-        tryckeri_hast::mdast_to_html(&arena)
+        let (arena, _) = satteri_pulldown_cmark::parse(MARKDOWN, opts);
+        satteri_hast::mdast_to_html(&arena)
     });
 }
 
@@ -140,17 +140,17 @@ fn full_pipeline_to_html(bencher: divan::Bencher) {
 #[divan::bench]
 fn mdast_arena_to_hast_arena(bencher: divan::Bencher) {
     let (arena, _) =
-        tryckeri_pulldown_cmark::parse(MARKDOWN, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
-    bencher.bench(|| tryckeri_hast::mdast_arena_to_hast_arena(&arena));
+        satteri_pulldown_cmark::parse(MARKDOWN, satteri_pulldown_cmark::DEFAULT_OPTIONS);
+    bencher.bench(|| satteri_hast::mdast_arena_to_hast_arena(&arena));
 }
 
 /// Given a pre-built HAST arena, render to HTML (no buffer).
 #[divan::bench]
 fn hast_arena_to_html(bencher: divan::Bencher) {
     let (arena, _) =
-        tryckeri_pulldown_cmark::parse(MARKDOWN, tryckeri_pulldown_cmark::DEFAULT_OPTIONS);
-    let hast = tryckeri_hast::mdast_arena_to_hast_arena(&arena);
-    bencher.bench(|| tryckeri_hast::hast_arena_to_html(&hast));
+        satteri_pulldown_cmark::parse(MARKDOWN, satteri_pulldown_cmark::DEFAULT_OPTIONS);
+    let hast = satteri_hast::mdast_arena_to_hast_arena(&arena);
+    bencher.bench(|| satteri_hast::hast_arena_to_html(&hast));
 }
 
 // ---------------------------------------------------------------------------
@@ -160,7 +160,7 @@ fn hast_arena_to_html(bencher: divan::Bencher) {
 /// Full pipeline: MDX source → JavaScript (parse + mdast→hast + hast→OXC + serialize).
 #[divan::bench]
 fn mdx_compile(bencher: divan::Bencher) {
-    bencher.bench(|| tryckeri_mdxjs::compile(MDX, &tryckeri_mdxjs::Options::default()).unwrap());
+    bencher.bench(|| satteri_mdxjs::compile(MDX, &satteri_mdxjs::Options::default()).unwrap());
 }
 
 // ---- Step-by-step breakdown ----
@@ -168,24 +168,24 @@ fn mdx_compile(bencher: divan::Bencher) {
 /// Step 1 of MDX compile: parse MDX source into an Arena.
 #[divan::bench]
 fn mdx_step1_parse(bencher: divan::Bencher) {
-    let opts = tryckeri_pulldown_cmark::MDX_OPTIONS;
-    bencher.bench(|| tryckeri_pulldown_cmark::parse(MDX, opts));
+    let opts = satteri_pulldown_cmark::MDX_OPTIONS;
+    bencher.bench(|| satteri_pulldown_cmark::parse(MDX, opts));
 }
 
 /// Step 2 of MDX compile: MDAST arena → HAST arena.
 #[divan::bench]
 fn mdx_step2_mdast_to_hast(bencher: divan::Bencher) {
-    let (arena, _) = tryckeri_pulldown_cmark::parse(MDX, tryckeri_pulldown_cmark::MDX_OPTIONS);
+    let (arena, _) = satteri_pulldown_cmark::parse(MDX, satteri_pulldown_cmark::MDX_OPTIONS);
 
-    bencher.bench(|| tryckeri_hast::mdast_arena_to_hast_arena(&arena));
+    bencher.bench(|| satteri_hast::mdast_arena_to_hast_arena(&arena));
 }
 
 /// Step 3 of MDX compile: HAST arena → OXC ES AST → JavaScript.
 #[divan::bench]
 fn mdx_step3_hast_to_js(bencher: divan::Bencher) {
-    let (arena, _) = tryckeri_pulldown_cmark::parse(MDX, tryckeri_pulldown_cmark::MDX_OPTIONS);
-    let hast_arena = tryckeri_hast::mdast_arena_to_hast_arena(&arena);
-    let opts = tryckeri_mdxjs::Options::default();
+    let (arena, _) = satteri_pulldown_cmark::parse(MDX, satteri_pulldown_cmark::MDX_OPTIONS);
+    let hast_arena = satteri_hast::mdast_arena_to_hast_arena(&arena);
+    let opts = satteri_mdxjs::Options::default();
 
-    bencher.bench(|| tryckeri_mdxjs::compile_hast_arena(&hast_arena, &opts).unwrap());
+    bencher.bench(|| satteri_mdxjs::compile_hast_arena(&hast_arena, &opts).unwrap());
 }

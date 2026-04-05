@@ -1,5 +1,5 @@
 [package]
-name = "tryckeri-bench"
+name = "satteri-bench"
 version = "0.1.0"
 edition = "2021"
 publish = false
@@ -14,12 +14,12 @@ path = "src/profile_parse.rs"
 
 
 [dependencies]
-tryckeri-pulldown-cmark = { path = "../tryckeri-pulldown-cmark" }
+satteri-pulldown-cmark = { path = "../satteri-pulldown-cmark" }
 
 [dev-dependencies]
 divan = "0.1"
-tryckeri-hast = { path = "../tryckeri-hast" }
-tryckeri-mdxjs = { path = "../tryckeri-mdxjs-rs" }
+satteri-hast = { path = "../satteri-hast" }
+satteri-mdxjs = { path = "../satteri-mdxjs-rs" }
 oxc_allocator = { workspace = true }
 rustc-hash = "2"
-tryckeri-pulldown-cmark = { path = "../tryckeri-pulldown-cmark" }
+satteri-pulldown-cmark = { path = "../satteri-pulldown-cmark" }

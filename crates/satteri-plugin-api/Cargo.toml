@@ -1,0 +1,9 @@
+[package]
+name = "satteri-plugin-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+satteri-arena = { path = "../satteri-arena" }
+satteri-mdast = { path = "../satteri-mdast" }
+rustc-hash = "2"

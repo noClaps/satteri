@@ -1,6 +1,6 @@
-# tryckeri-bench
+# satteri-bench
 
-Benchmarks for Tryckeri, a high-performance Markdown and MDX processor.
+Benchmarks for Sätteri, a high-performance Markdown and MDX processor.
 
 > [!NOTE]
 > **Work in progress** — this crate is under active development.

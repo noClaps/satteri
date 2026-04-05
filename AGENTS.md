@@ -1,6 +1,6 @@
 # Agents Guide
 
-Tryckeri is a Rust + TypeScript monorepo for high-performance Markdown/MDX processing, with an arena-allocated binary AST and a plugin system at both the MDAST and HAST levels.
+Sätteri is a Rust + TypeScript monorepo for high-performance Markdown/MDX processing, with an arena-allocated binary AST and a plugin system at both the MDAST and HAST levels.
 
 ## Useful Commands
 
@@ -10,15 +10,15 @@ cargo clippy --all --all-targets         # lint Rust
 cargo test --all                         # test Rust
 pnpm lint                                # oxlint + cargo clippy
 pnpm format                              # oxfmt + cargo fmt
-cd packages/tryckeri && pnpm test        # test JS (vitest)
-cd packages/tryckeri && pnpm build       # build NAPI binding + TS
+cd packages/satteri && pnpm test        # test JS (vitest)
+cd packages/satteri && pnpm build       # build NAPI binding + TS
 ```
 
 ## Useful Resources
 
 - In [CONTRIBUTING.md](./CONTRIBUTING.md): [Quality Guidelines](./CONTRIBUTING.md#quality-guidelines) applies to agents and humans equally, [Getting Started](./CONTRIBUTING.md#getting-started) documents each crate's role.
 - The [README](./README.md) has the project overview, crate table, and pointer to the npm package README for installation and usage.
-- `packages/tryckeri/src/index.ts` is the public API surface for the npm package.
+- `packages/satteri/src/index.ts` is the public API surface for the npm package.
 - `crates/napi-binding/src/lib.rs` is the NAPI boundary — every function exposed to JS lives there.
 - Spec tests for pulldown-cmark live under `crates/pulldown-cmark/specs/`.
 

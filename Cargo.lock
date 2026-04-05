@@ -864,6 +864,113 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
+name = "satteri"
+version = "0.1.0"
+dependencies = [
+ "satteri-hast",
+ "satteri-mdast",
+ "satteri-mdxjs",
+ "satteri-pulldown-cmark",
+]
+
+[[package]]
+name = "satteri-arena"
+version = "0.1.0"
+dependencies = [
+ "rustc-hash",
+ "unicode-id",
+]
+
+[[package]]
+name = "satteri-bench"
+version = "0.1.0"
+dependencies = [
+ "divan",
+ "oxc_allocator",
+ "rustc-hash",
+ "satteri-hast",
+ "satteri-mdxjs",
+ "satteri-pulldown-cmark",
+]
+
+[[package]]
+name = "satteri-hast"
+version = "0.1.0"
+dependencies = [
+ "pulldown-cmark-escape",
+ "satteri-arena",
+ "satteri-mdast",
+ "satteri-pulldown-cmark",
+]
+
+[[package]]
+name = "satteri-mdast"
+version = "0.1.0"
+dependencies = [
+ "rustc-hash",
+ "satteri-arena",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "satteri-mdxjs"
+version = "0.1.0"
+dependencies = [
+ "oxc_allocator",
+ "oxc_ast",
+ "oxc_codegen",
+ "oxc_estree",
+ "oxc_parser",
+ "oxc_span",
+ "oxc_syntax",
+ "pretty_assertions",
+ "rustc-hash",
+ "satteri-arena",
+ "satteri-hast",
+ "satteri-mdast",
+ "satteri-pulldown-cmark",
+ "serde",
+]
+
+[[package]]
+name = "satteri-napi"
+version = "0.1.0"
+dependencies = [
+ "napi",
+ "napi-build",
+ "napi-derive",
+ "satteri-arena",
+ "satteri-hast",
+ "satteri-mdast",
+ "satteri-mdxjs",
+ "satteri-pulldown-cmark",
+]
+
+[[package]]
+name = "satteri-plugin-api"
+version = "0.1.0"
+dependencies = [
+ "rustc-hash",
+ "satteri-arena",
+ "satteri-mdast",
+]
+
+[[package]]
+name = "satteri-pulldown-cmark"
+version = "0.13.1"
+dependencies = [
+ "bitflags",
+ "memchr",
+ "pulldown-cmark-escape",
+ "rustc-hash",
+ "satteri-arena",
+ "satteri-mdast",
+ "serde",
+ "unicase",
+]
+
+[[package]]
 name = "self_cell"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -998,113 +1105,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
-]
-
-[[package]]
-name = "tryckeri"
-version = "0.1.0"
-dependencies = [
- "tryckeri-hast",
- "tryckeri-mdast",
- "tryckeri-mdxjs",
- "tryckeri-pulldown-cmark",
-]
-
-[[package]]
-name = "tryckeri-arena"
-version = "0.1.0"
-dependencies = [
- "rustc-hash",
- "unicode-id",
-]
-
-[[package]]
-name = "tryckeri-bench"
-version = "0.1.0"
-dependencies = [
- "divan",
- "oxc_allocator",
- "rustc-hash",
- "tryckeri-hast",
- "tryckeri-mdxjs",
- "tryckeri-pulldown-cmark",
-]
-
-[[package]]
-name = "tryckeri-hast"
-version = "0.1.0"
-dependencies = [
- "pulldown-cmark-escape",
- "tryckeri-arena",
- "tryckeri-mdast",
- "tryckeri-pulldown-cmark",
-]
-
-[[package]]
-name = "tryckeri-mdast"
-version = "0.1.0"
-dependencies = [
- "rustc-hash",
- "serde",
- "serde_json",
- "tryckeri-arena",
-]
-
-[[package]]
-name = "tryckeri-mdxjs"
-version = "0.1.0"
-dependencies = [
- "oxc_allocator",
- "oxc_ast",
- "oxc_codegen",
- "oxc_estree",
- "oxc_parser",
- "oxc_span",
- "oxc_syntax",
- "pretty_assertions",
- "rustc-hash",
- "serde",
- "tryckeri-arena",
- "tryckeri-hast",
- "tryckeri-mdast",
- "tryckeri-pulldown-cmark",
-]
-
-[[package]]
-name = "tryckeri-napi"
-version = "0.1.0"
-dependencies = [
- "napi",
- "napi-build",
- "napi-derive",
- "tryckeri-arena",
- "tryckeri-hast",
- "tryckeri-mdast",
- "tryckeri-mdxjs",
- "tryckeri-pulldown-cmark",
-]
-
-[[package]]
-name = "tryckeri-plugin-api"
-version = "0.1.0"
-dependencies = [
- "rustc-hash",
- "tryckeri-arena",
- "tryckeri-mdast",
-]
-
-[[package]]
-name = "tryckeri-pulldown-cmark"
-version = "0.13.1"
-dependencies = [
- "bitflags",
- "memchr",
- "pulldown-cmark-escape",
- "rustc-hash",
- "serde",
- "tryckeri-arena",
- "tryckeri-mdast",
- "unicase",
 ]
 
 [[package]]

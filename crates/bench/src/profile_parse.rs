@@ -1,19 +1,19 @@
-/// Profiling binary: hammers `tryckeri_pulldown_cmark::parse` in a tight loop so perf/flamegraph
+/// Profiling binary: hammers `satteri_pulldown_cmark::parse` in a tight loop so perf/flamegraph
 /// gets enough samples to show a meaningful call graph.
 ///
-/// Run via: cargo flamegraph -p tryckeri-bench --bin profile_parse
+/// Run via: cargo flamegraph -p satteri-bench --bin profile_parse
 fn main() {
     let src = include_str!("../fixtures/markdown.md");
-    let opts = tryckeri_pulldown_cmark::DEFAULT_OPTIONS;
+    let opts = satteri_pulldown_cmark::DEFAULT_OPTIONS;
 
     // Warm up to avoid cold-start noise.
     for _ in 0..100 {
-        let _ = tryckeri_pulldown_cmark::parse(src, opts);
+        let _ = satteri_pulldown_cmark::parse(src, opts);
     }
 
     // Profile window — enough iterations for ~5s of samples.
     for _ in 0..50_000 {
-        let arena = tryckeri_pulldown_cmark::parse(src, opts);
+        let arena = satteri_pulldown_cmark::parse(src, opts);
         std::hint::black_box(arena);
     }
 }

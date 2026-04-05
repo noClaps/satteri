@@ -5,8 +5,8 @@
     "crates/**/*",
     "node_modules",
     "dist",
-    "tryckeri_napi.*",
-    "packages/tryckeri/",
+    "satteri_napi.*",
+    "packages/satteri/",
     "wasi-worker.mjs",
     "wasi-worker-browser.mjs"
   ]

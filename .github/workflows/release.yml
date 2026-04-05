@@ -46,9 +46,9 @@ jobs:
     runs-on: ${{ matrix.settings.host }}
     defaults:
       run:
-        working-directory: packages/tryckeri
+        working-directory: packages/satteri
     env:
-      APP_NAME: tryckeri_napi
+      APP_NAME: satteri_napi
     steps:
       - name: Enable long paths on Windows
         if: runner.os == 'Windows'
@@ -96,7 +96,7 @@ jobs:
         if: matrix.settings.target != 'wasm32-wasip1-threads'
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: packages/tryckeri/${{ env.APP_NAME }}.*.node
+          path: packages/satteri/${{ env.APP_NAME }}.*.node
           if-no-files-found: error
 
       - name: Upload artifact
@@ -104,7 +104,7 @@ jobs:
         if: matrix.settings.target == 'wasm32-wasip1-threads'
         with:
           name: bindings-${{ matrix.settings.target }}
-          path: packages/tryckeri/${{ env.APP_NAME }}.*.wasm
+          path: packages/satteri/${{ env.APP_NAME }}.*.wasm
           if-no-files-found: error
 
   release:
@@ -132,11 +132,11 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v7
         with:
-          path: packages/tryckeri/artifacts
+          path: packages/satteri/artifacts
 
       - name: Build TypeScript and prepare artifacts
         run: pnpm run build:ts && pnpm napi create-npm-dirs && pnpm run artifacts && pnpm napi prepublish
-        working-directory: packages/tryckeri
+        working-directory: packages/satteri
 
       - name: Check if release PR merge
         id: check
@@ -159,7 +159,7 @@ jobs:
               npm publish "$dir" --access public --provenance || echo "Skipped (may already exist)"
             fi
           done
-        working-directory: packages/tryckeri
+        working-directory: packages/satteri
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

@@ -1,0 +1,34 @@
+[dependencies]
+satteri-arena = { path = "../satteri-arena" }
+satteri-mdast = { path = "../satteri-mdast" }
+satteri-pulldown-cmark = { path = "../satteri-pulldown-cmark" }
+satteri-hast = { path = "../satteri-hast" }
+rustc-hash = "2"
+serde = { version = "1", features = ["derive"] }
+oxc_allocator = { workspace = true }
+oxc_ast = { workspace = true, features = ["serialize"] }
+oxc_codegen = { workspace = true }
+oxc_estree = { workspace = true, features = ["serialize"] }
+oxc_parser = { workspace = true }
+oxc_span = { workspace = true }
+oxc_syntax = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = "1"
+
+[features]
+serializable = []
+
+[package]
+authors = ["Titus Wormer <tituswormer@gmail.com>", "Bruits"]
+categories = ["compilers", "text-processing"]
+description = "Compile MDX to JavaScript in Rust."
+edition = "2024"
+homepage = "https://github.com/bruits/satteri"
+include = ["license", "src/"]
+keywords = ["compile", "markdown", "mdx"]
+license = "MIT"
+name = "satteri-mdxjs"
+repository = "https://github.com/bruits/satteri"
+rust-version = "1.91.0"
+version = "0.1.0"

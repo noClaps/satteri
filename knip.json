@@ -9,7 +9,7 @@
     "unified"
   ],
   "workspaces": {
-    "packages/tryckeri": {
+    "packages/satteri": {
       "entry": ["bench/**/*.{ts,mjs}", "test/**/*.ts"],
       "project": ["src/**/*.ts"],
       "ignoreDependencies": ["@emnapi/runtime", "@napi-rs/wasm-runtime"]

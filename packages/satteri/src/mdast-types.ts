@@ -40,9 +40,10 @@ export type {
   MdxJsxAttribute,
   MdxJsxExpressionAttribute,
   MdxJsxAttributeValueExpression,
-} from "mdast-util-mdx-jsx";
-export type { MdxFlowExpression, MdxTextExpression } from "mdast-util-mdx-expression";
-export type { MdxjsEsm } from "mdast-util-mdxjs-esm";
+  MdxFlowExpression,
+  MdxTextExpression,
+  MdxjsEsm,
+} from "./mdx-types.js";
 
 // Custom extension types
 export type { Toml, MathNode, InlineMath } from "./types.js";

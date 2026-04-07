@@ -1,5 +1,5 @@
 import type { BufferHeader } from "../types.js";
-import type { MdxJsxAttribute, MdxJsxExpressionAttribute } from "mdast-util-mdx-jsx";
+import type { MdxJsxAttribute, MdxJsxExpressionAttribute } from "../mdx-types.js";
 
 export type { MdxJsxAttribute, MdxJsxExpressionAttribute };
 

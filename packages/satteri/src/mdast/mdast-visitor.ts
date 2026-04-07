@@ -37,9 +37,9 @@ import type {
   ThematicBreak,
   Yaml,
 } from "mdast";
-import type { MdxJsxFlowElement, MdxJsxTextElement } from "mdast-util-mdx-jsx";
-import type { MdxFlowExpression, MdxTextExpression } from "mdast-util-mdx-expression";
-import type { MdxjsEsm } from "mdast-util-mdxjs-esm";
+import type { MdxJsxFlowElement, MdxJsxTextElement } from "../mdx-types.js";
+import type { MdxFlowExpression, MdxTextExpression } from "../mdx-types.js";
+import type { MdxjsEsm } from "../mdx-types.js";
 
 const MutationType = {
   Replace: "replace",

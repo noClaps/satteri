@@ -9,7 +9,7 @@ import type { HastNode } from "../src/hast/hast-materializer.js";
 import type { HastVisitorContext } from "../src/hast/hast-visitor.js";
 import type { MdastNode } from "../src/types.js";
 import type { Element } from "hast";
-import type { MdxJsxTextElementHast } from "mdast-util-mdx-jsx";
+import type { MdxJsxTextElementHast } from "../src/mdx-types.js";
 
 // compileMarkdownToHtml - no plugins
 

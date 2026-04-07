@@ -10,7 +10,7 @@ import type { Nodes as HastStdNodes } from "hast";
 // Re-export standard position types from unist.
 export type { Position, Point } from "unist";
 
-// Re-export MDX types from their canonical packages.
+// Re-export MDX types from our local definitions.
 // Importing these also registers them in the mdast/hast content maps
 // via module augmentation (declare module 'mdast' / 'hast').
 export type {
@@ -19,11 +19,12 @@ export type {
   MdxJsxAttribute as MdxJsxAttributeNode,
   MdxJsxExpressionAttribute as MdxJsxExpressionAttributeNode,
   MdxJsxAttributeValueExpression as MdxJsxAttributeValueExpressionNode,
-} from "mdast-util-mdx-jsx";
-export type { MdxFlowExpression, MdxTextExpression } from "mdast-util-mdx-expression";
-export type { MdxjsEsm } from "mdast-util-mdxjs-esm";
+  MdxFlowExpression,
+  MdxTextExpression,
+  MdxjsEsm,
+} from "./mdx-types.js";
 
-import type { MdxJsxAttribute, MdxJsxExpressionAttribute } from "mdast-util-mdx-jsx";
+import type { MdxJsxAttribute, MdxJsxExpressionAttribute } from "./mdx-types.js";
 
 export type MdxJsxAttributeUnion = MdxJsxAttribute | MdxJsxExpressionAttribute;
 

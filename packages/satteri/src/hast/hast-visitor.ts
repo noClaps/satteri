@@ -1,9 +1,9 @@
 import { materializeHastNode, type HastNode } from "./hast-materializer.js";
 import type { HastNodeInternal, HastRaw, MdxJsxAttributeUnion } from "../types.js";
 import type { Element, Text, Comment, Doctype } from "hast";
-import type { MdxJsxFlowElementHast, MdxJsxTextElementHast } from "mdast-util-mdx-jsx";
-import type { MdxFlowExpressionHast, MdxTextExpressionHast } from "mdast-util-mdx-expression";
-import type { MdxjsEsmHast } from "mdast-util-mdxjs-esm";
+import type { MdxJsxFlowElementHast, MdxJsxTextElementHast } from "../mdx-types.js";
+import type { MdxFlowExpressionHast, MdxTextExpressionHast } from "../mdx-types.js";
+import type { MdxjsEsmHast } from "../mdx-types.js";
 import {
   HastReader,
   HAST_ELEMENT,

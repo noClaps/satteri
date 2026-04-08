@@ -37,8 +37,6 @@ const PROP_SPACE_SEP = 3;
 const PROP_INT = 4;
 const PROP_NULL = 5;
 
-// Return value classification
-
 type ReturnClass = "no_change" | "raw_markdown" | "raw_html" | "structured_node";
 
 export function classifyReturn(value: unknown): ReturnClass {
@@ -49,8 +47,6 @@ export function classifyReturn(value: unknown): ReturnClass {
   if (typeof v.type === "string") return "structured_node";
   throw new Error("Invalid return value from visitor: must have raw, rawHtml, or type");
 }
-
-// CommandBuffer
 
 const INITIAL_SIZE = 4096;
 const encoder = new TextEncoder();

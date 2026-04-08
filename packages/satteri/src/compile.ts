@@ -1,10 +1,3 @@
-/**
- * Top-level compile functions, the primary public API.
- *
- * Both MDAST and HAST arenas stay in Rust memory via opaque handles.
- * Only matched nodes and mutation commands cross the NAPI boundary.
- */
-
 import { visitHastHandle, resolveSubscriptions, type HastHandle } from "./hast/hast-visitor.js";
 import {
   visitMdastHandle,
@@ -35,8 +28,6 @@ import { materializeTree } from "./mdast/mdast-materializer.js";
 import { HastReader } from "./hast/hast-reader.js";
 import { materializeHastTree } from "./hast/hast-materializer.js";
 import type { MdastNode, HastNode } from "./types.js";
-
-// MDAST plugin runner (handle-based)
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type MdastHandle = any;
@@ -94,8 +85,6 @@ function runMdastPluginsOnHandle(
 
   return runNext();
 }
-
-// HAST plugin runner (handle-based)
 
 function runHastPluginsOnHandle(
   handle: HastHandle,

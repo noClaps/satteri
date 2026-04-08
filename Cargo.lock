@@ -1065,7 +1065,7 @@ dependencies = [
 
 [[package]]
 name = "satteri-arena"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustc-hash",
  "unicode-id-start",
@@ -1073,7 +1073,7 @@ dependencies = [
 
 [[package]]
 name = "satteri-ast"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "pulldown-cmark-escape",
  "rustc-hash",
@@ -1097,7 +1097,7 @@ dependencies = [
 
 [[package]]
 name = "satteri-mdxjs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "oxc_allocator",
  "oxc_ast",
@@ -1130,7 +1130,7 @@ dependencies = [
 
 [[package]]
 name = "satteri-plugin-api"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "rustc-hash",
  "satteri-arena",
@@ -1141,7 +1141,7 @@ dependencies = [
 
 [[package]]
 name = "satteri-pulldown-cmark"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bitflags",
  "memchr",

@@ -1,8 +1,3 @@
-// Shared types for the satteri JS layer.
-//
-// Uses standard @types/mdast, @types/hast, and mdast-util-mdx-* packages
-// for AST node types. Extension types (toml, math, raw) are augmented here.
-
 import type { Position } from "unist";
 import type { Literal as MdastLiteral, Nodes as MdastStdNodes } from "mdast";
 import type { Nodes as HastStdNodes } from "hast";

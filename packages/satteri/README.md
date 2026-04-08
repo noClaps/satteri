@@ -31,10 +31,12 @@ const js = mdxToJs("# Hello\n\n<MyComponent />");
 
 ### With plugins
 
-Both functions accept `mdastPlugins` (operate on the Markdown AST before conversion) and `hastPlugins` (operate on the HTML AST before output).
+Both functions accept `mdastPlugins` (operate on the Markdown AST before conversion to HAST) and `hastPlugins` (operate on the HAST before output).
 
 ```ts
-import { markdownToHtml, defineMdastPlugin, defineHastPlugin } from "satteri";
+import { markdownToHtml } from "satteri";
+import { removeHeadings } from "./my-mdast-plugins.js";
+import { addLinkClasses } from "./my-hast-plugins.js";
 
 const html = markdownToHtml("# Hello\n\n[link](https://example.com)", {
   mdastPlugins: [removeHeadings],
@@ -42,7 +44,7 @@ const html = markdownToHtml("# Hello\n\n[link](https://example.com)", {
 });
 ```
 
-If you're familiar with the unified ecosystem, mdast and hast plugins would be similar to remark and rehype plugins, respectively. This project does not currently have an equivalent of micromark or recma plugins.
+If you're familiar with the unified ecosystem, mdast and hast plugins would be similar to remark and rehype plugins, respectively, and re-uses the same AST shape for both. This project does not currently have an equivalent of micromark or recma plugins.
 
 ## Plugins
 
@@ -72,7 +74,7 @@ const highlightCode = defineMdastPlugin({
 });
 ```
 
-All standard mdast node types are supported, plus GFM extensions (`table`, `tableRow`, `tableCell`, `delete`, `footnoteDefinition`, `footnoteReference`) and MDX nodes (`mdxJsxFlowElement`, `mdxJsxTextElement`, `mdxFlowExpression`, `mdxTextExpression`, `mdxjsEsm`) if enabled.
+All standard mdast node types are supported, plus GFM extensions (`table`, `tableRow`, `tableCell`, `delete`, `footnoteDefinition`, `footnoteReference`) and MDX nodes (`mdxJsxFlowElement`, `mdxJsxTextElement`, `mdxFlowExpression`, `mdxTextExpression`, `mdxjsEsm`) if enabled. For more information on the AST shape and node types, see the [mdast spec](https://github.com/syntax-tree/mdast).
 
 ### HAST plugins
 
@@ -138,6 +140,8 @@ const uppercaseText = defineHastPlugin({
 });
 ```
 
+For more information on the AST shape and node types, see the [hast spec](https://github.com/syntax-tree/hast).
+
 ### Mutating nodes
 
 Unlike remark and rehype plugins, nodes in Sätteri inside plugins are read-only. The AST lives in Rust memory and JavaScript only has a "view" over the different nodes, so direct mutations like `node.value = "new text"` have no effect. Use the context methods (`ctx.setProperty`, `ctx.removeNode`, `ctx.replaceNode`, etc.) instead, which send changes back to Rust in an efficient way.
@@ -185,7 +189,7 @@ const html = await markdownToHtml("```js\ncode\n```", {
 
 ## API
 
-### `markdownToHtml(source, options?)`
+### `markdownToHtml(source: string, options?: CompileOptions)`
 
 Parse Markdown and compile to HTML. Returns `string` if all plugins are sync, `Promise<string>` if any are async.
 
@@ -194,7 +198,7 @@ const html = markdownToHtml("# Hello\n\nWorld");
 // <h1>Hello</h1>\n<p>World</p>
 ```
 
-### `mdxToJs(source, options?)`
+### `mdxToJs(source: string, options?: MdxCompileOptions)`
 
 Parse MDX and compile to JavaScript module code. Same sync/async return behavior.
 
@@ -227,7 +231,7 @@ const js = mdxToJs("# Hello\n\nWorld", {
 
 The `ignoreElements` option can be used to exclude specific elements from collapsing.
 
-### `markdownToMdast(source)`
+### `markdownToMdast(source: string)`
 
 Parse Markdown and return a complete mdast tree. This can be useful if you wanted to benefit from the fast native parsing of Sätteri, but ultimately wanted another pipeline to handle transformations and compilation, e.g. using remark plugins and `remark-stringify` to convert back to Markdown after processing.
 
@@ -239,7 +243,7 @@ const tree = markdownToMdast("# Hello\n\nWorld");
 // tree.children[0].depth === 1
 ```
 
-### `mdxToMdast(source)`
+### `mdxToMdast(source: string)`
 
 Parse MDX and return a complete mdast tree.
 
@@ -249,7 +253,7 @@ const tree = mdxToMdast('<Component foo="bar" />');
 // tree.children[0].name === "Component"
 ```
 
-### `markdownToHast(source)`
+### `markdownToHast(source: string)`
 
 Parse Markdown, convert to hast, and return a complete hast tree.
 
@@ -259,7 +263,7 @@ const tree = markdownToHast("# Hello\n\nWorld");
 // tree.children[0].tagName === "h1"
 ```
 
-### `mdxToHast(source)`
+### `mdxToHast(source: string)`
 
 Parse MDX, convert to hast, and return a complete hast tree.
 
@@ -269,11 +273,11 @@ const tree = mdxToHast("<MyComponent />");
 // tree.children[0].name === "MyComponent"
 ```
 
-### `defineMdastPlugin(definition)`
+### `defineMdastPlugin(definition: MdastPluginDefinition)`
 
 Type-safe wrapper for MDAST plugin definitions.
 
-### `defineHastPlugin(definition)`
+### `defineHastPlugin(definition: HastPluginDefinition)`
 
 Type-safe wrapper for HAST plugin definitions.
 

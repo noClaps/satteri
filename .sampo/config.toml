@@ -12,4 +12,4 @@ version = 1
 # show_acknowledgments = true (default)
 
 [packages]
-ignore = ["internal-*", "examples/*"]
+ignore = ["root", "examples", "satteri-bench"]

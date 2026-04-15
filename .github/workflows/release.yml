@@ -163,6 +163,11 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Inject optionalDependencies into main package.json
+        if: steps.check.outputs.is_release == 'true'
+        run: pnpm napi pre-publish -t npm --skip-optional-publish
+        working-directory: packages/satteri
+
       - uses: bruits/sampo/crates/sampo-github-action@main
         with:
           command: auto

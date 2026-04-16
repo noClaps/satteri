@@ -5,23 +5,28 @@ use satteri_arena::Arena;
 use crate::hast::codec::{
     decode_element_prop, decode_element_prop_count, decode_element_tag, decode_text_data,
 };
+use crate::hast::properties::property_to_attribute;
 use crate::hast::HastNodeType;
 use crate::shared::{PROP_BOOL_FALSE, PROP_BOOL_TRUE, PROP_COMMA_SEP, PROP_SPACE_SEP, PROP_STRING};
 
 /// Render HTML from an arena.
 pub fn hast_arena_to_html(arena: &Arena) -> String {
     let mut out = String::with_capacity(arena.source().len());
-    render_node(0, arena, &mut out);
+    render_node(0, arena, &mut out, false);
     out
 }
 
 /// Render a HAST node subtree to HTML.
-pub fn render_node(node_id: u32, view: &Arena, out: &mut String) {
+///
+/// `in_raw_text` indicates the node is being rendered inside a raw-text element
+/// (`<script>` / `<style>`). Per the HTML spec, descendant text of these elements
+/// is not entity-escaped.
+pub fn render_node(node_id: u32, view: &Arena, out: &mut String, in_raw_text: bool) {
     let node = view.get_node(node_id);
 
     let Some(node_type) = HastNodeType::from_u8(node.node_type) else {
         for &child_id in view.get_children(node_id) {
-            render_node(child_id, view, out);
+            render_node(child_id, view, out, in_raw_text);
         }
         return;
     };
@@ -29,7 +34,7 @@ pub fn render_node(node_id: u32, view: &Arena, out: &mut String) {
     match node_type {
         HastNodeType::Root => {
             for &child_id in view.get_children(node_id) {
-                render_node(child_id, view, out);
+                render_node(child_id, view, out, in_raw_text);
             }
         }
 
@@ -48,16 +53,17 @@ pub fn render_node(node_id: u32, view: &Arena, out: &mut String) {
             for i in 0..prop_count {
                 let (name_ref, value_kind, value_ref) = decode_element_prop(data, i);
                 let name = view.get_str(name_ref);
+                let attr_name = property_to_attribute(name);
                 match value_kind {
                     PROP_BOOL_TRUE => {
                         out.push(' ');
-                        out.push_str(name);
+                        out.push_str(&attr_name);
                     }
                     PROP_BOOL_FALSE => {}
                     PROP_STRING | PROP_SPACE_SEP | PROP_COMMA_SEP => {
                         let value = view.get_str(value_ref);
                         out.push(' ');
-                        out.push_str(name);
+                        out.push_str(&attr_name);
                         out.push_str("=\"");
                         pulldown_cmark_escape::escape_html(&mut *out, value).unwrap();
                         out.push('"');
@@ -74,8 +80,9 @@ pub fn render_node(node_id: u32, view: &Arena, out: &mut String) {
                 if is_block_container(tag) {
                     out.push('\n');
                 }
+                let child_in_raw_text = in_raw_text || is_raw_text_element(tag);
                 for &child_id in view.get_children(node_id) {
-                    render_node(child_id, view, out);
+                    render_node(child_id, view, out, child_in_raw_text);
                 }
                 out.push_str("</");
                 out.push_str(tag);
@@ -95,7 +102,11 @@ pub fn render_node(node_id: u32, view: &Arena, out: &mut String) {
                 // Skip newline-only text nodes inserted by the mdast->hast converter
                 // as spacing between block siblings (needed for MDX, not for HTML)
                 if !text.chars().all(|c| c == '\n') {
-                    pulldown_cmark_escape::escape_html_body_text(&mut *out, text).unwrap();
+                    if in_raw_text {
+                        out.push_str(text);
+                    } else {
+                        pulldown_cmark_escape::escape_html_body_text(&mut *out, text).unwrap();
+                    }
                 }
             }
         }
@@ -181,4 +192,13 @@ fn is_block_element(tag: &str) -> bool {
 /// Block containers that emit \n after their opening tag.
 fn is_block_container(tag: &str) -> bool {
     matches!(tag, "blockquote" | "ol" | "ul" | "dl")
+}
+
+/// Raw-text elements whose children are not entity-escaped on output, per the
+/// WHATWG HTML serialization algorithm.
+fn is_raw_text_element(tag: &str) -> bool {
+    matches!(
+        tag,
+        "script" | "style" | "xmp" | "iframe" | "noembed" | "noframes" | "plaintext"
+    )
 }

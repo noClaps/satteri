@@ -591,3 +591,61 @@ fn optimize_static_detect_overrides_first_wins() -> Result<(), satteri_arena::md
     );
     Ok(())
 }
+
+#[test]
+fn explicit_only_literal_tags_not_in_components() -> Result<(), satteri_arena::mdx_types::Message> {
+    // Explicit JSX with a hyphenated tag name: matches @mdx-js/mdx — the tag
+    // stays as a string literal and does not get added to _components defaults.
+    // The hyphen is what previously risked emitting an invalid defaults key
+    // (`{ astro-image: ... }`) and an invalid `_components.astro-image` access;
+    // both are avoided by not including the tag at all.
+    let result = compile(
+        "# Test\n\n<my-widget foo=\"bar\">child</my-widget>\n",
+        &Options::default(),
+        MDX_OPTS,
+    )?;
+    assert!(
+        !result.contains("my-widget\": \"my-widget\""),
+        "explicit-only tag should not be in _components defaults: {result}"
+    );
+    assert!(
+        !result.contains("_components.my-widget") && !result.contains("_components[\"my-widget\"]"),
+        "explicit hyphenated JSX should not be routed through _components: {result}"
+    );
+    assert!(
+        result.contains("_jsx(\"my-widget\""),
+        "explicit hyphenated JSX stays as a string literal: {result}"
+    );
+    // Meanwhile, the markdown-generated `h1` still gets routed through _components.
+    assert!(
+        result.contains("_jsx(_components.h1"),
+        "markdown-generated h1 should route through _components: {result}"
+    );
+    Ok(())
+}
+
+#[test]
+fn mixed_explicit_and_implicit_tag_routes_implicit_only()
+-> Result<(), satteri_arena::mdx_types::Message> {
+    // When the same tag `p` appears both as a markdown paragraph (implicit) and
+    // as a user-written `<p foo>` (explicit), only the implicit occurrence is
+    // routed through _components. The explicit one keeps its string literal.
+    let result = compile(
+        "Para1\n\n<p foo=\"bar\">explicit</p>\n",
+        &Options::default(),
+        MDX_OPTS,
+    )?;
+    assert!(
+        result.contains("p: \"p\""),
+        "p should be in defaults (has implicit occurrence): {result}"
+    );
+    assert!(
+        result.contains("_jsx(_components.p, { children: \"Para1\""),
+        "implicit p should route through _components: {result}"
+    );
+    assert!(
+        result.contains("_jsx(\"p\", {\n            foo: \"bar\""),
+        "explicit <p foo> should stay as string literal: {result}"
+    );
+    Ok(())
+}

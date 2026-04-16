@@ -349,7 +349,7 @@ fn try_render_static(
     if !is_static_subtree(view, node_id, config) {
         return false;
     }
-    satteri_ast::hast::render_node(node_id, view, out);
+    satteri_ast::hast::render_node(node_id, view, out, false);
     true
 }
 

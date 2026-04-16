@@ -92,7 +92,14 @@ pub fn parse(source: &str, options: Options) -> (Arena, Vec<(usize, String)>) {
                 match &inner.tree[ix].item.body {
                     // Code block close: write accumulated content.
                     ItemBody::FencedCodeBlock(_) | ItemBody::IndentCodeBlock => {
-                        if let Some(content) = code_block_buf.take() {
+                        if let Some(mut content) = code_block_buf.take() {
+                            // Match remark / mdast-util-from-markdown: `Code.value`
+                            // never carries the trailing `\n` before the closing
+                            // fence. mdast-util-to-hast re-adds it at render time;
+                            // our mdast→hast converter does the same.
+                            if content.ends_with('\n') {
+                                content.pop();
+                            }
                             let sr = builder.alloc_string(&content);
                             let id = builder.current_node_id();
                             let existing_data = builder.arena_ref().get_type_data(id).to_vec();

@@ -6,8 +6,9 @@
 use crate::hast_util_to_oxc::MdxProgram;
 use crate::oxc_utils::{
     create_binding_ident, create_bool_expression, create_call_expression, create_ident_expression,
-    create_ident_name, create_member, create_object_expression, create_str_expression,
-    create_string_literal, is_literal_name, jsx_member_to_parts, span_to_position,
+    create_ident_name, create_member, create_object_expression, create_prop_name,
+    create_str_expression, create_string_literal, is_literal_name, jsx_member_to_parts,
+    span_to_position,
 };
 use satteri_arena::mdx_types::Location;
 
@@ -158,7 +159,14 @@ pub fn mdx_plugin_recma_jsx_rewrite<'a>(
         let mut dynamic_components: Vec<(String, Span)> = Vec::new();
         let mut dynamic_objects: Vec<String> = Vec::new();
 
-        for tag in scope.literal_tags.keys() {
+        // Only literal tags with at least one non-explicit (markdown-generated)
+        // occurrence go into `_components`. Explicit-only JSX like user-written
+        // `<my-widget foo>` keeps its string-literal form and is not routed
+        // through `_components`, matching `@mdx-js/mdx`.
+        for (tag, is_only_explicit) in &scope.literal_tags {
+            if *is_only_explicit {
+                continue;
+            }
             if !scope.defined.contains(tag.as_str()) {
                 defaults.push((tag.clone(), tag.clone()));
             }
@@ -988,7 +996,8 @@ fn create_components_init_expr<'a>(
     defaults: &[(String, String)],
     has_provider: bool,
 ) -> Expression<'a> {
-    // Build the defaults object: {h1: "h1", p: "p", ...}
+    // Build the defaults object: {h1: "h1", "my-element": "my-element", ...}.
+    // Hyphenated tag names are not valid identifiers, so they must be string keys.
     let mut props = OxcVec::with_capacity_in(defaults.len(), alloc);
     for (key, value) in defaults {
         props.push(ObjectPropertyKind::ObjectProperty(OxcBox::new_in(
@@ -996,10 +1005,7 @@ fn create_components_init_expr<'a>(
                 node_id: Cell::new(NodeId::DUMMY),
                 span: SPAN,
                 kind: PropertyKind::Init,
-                key: PropertyKey::StaticIdentifier(OxcBox::new_in(
-                    create_ident_name(alloc, key),
-                    alloc,
-                )),
+                key: create_prop_name(alloc, key),
                 value: create_str_expression(alloc, value),
                 method: false,
                 shorthand: false,

@@ -172,3 +172,121 @@ fn smart_punctuation() {
         "<p>\u{201c}Hello,\u{201d} she said\u{2014}it\u{2019}s an em-dash, an en\u{2013}dash, and an ellipsis\u{2026}</p>\n"
     );
 }
+
+// Task lists: mdast→hast adds `contains-task-list` on the list and
+// `task-list-item` on each task `<li>`, plus an <input type=checkbox>.
+
+#[test]
+fn task_list_mixed() {
+    assert_eq!(
+        html("- [x] done\n- [ ] todo"),
+        "<ul class=\"contains-task-list\">\n\
+         <li class=\"task-list-item\"><input type=\"checkbox\" disabled checked>done</li>\n\
+         <li class=\"task-list-item\"><input type=\"checkbox\" disabled>todo</li>\n\
+         </ul>\n"
+    );
+}
+
+#[test]
+fn plain_list_has_no_task_class() {
+    // Plain list: no contains-task-list / task-list-item classes, no <input>.
+    assert_eq!(html("- a\n- b"), "<ul>\n<li>a</li>\n<li>b</li>\n</ul>\n");
+}
+
+// Code blocks: value always ends with a trailing newline, even when the
+// source didn't have one before the closing fence.
+
+#[test]
+fn code_block_appends_trailing_newline_when_missing() {
+    // Closing fence on the same line leaves pulldown-cmark with an
+    // unterminated block whose value lacks a trailing newline. The
+    // mdast→hast pass normalises it so the <code> text still ends with \n.
+    assert_eq!(
+        html("```js\nconsole.log(1)```"),
+        "<pre><code class=\"language-js\">console.log(1)```\n</code></pre>\n"
+    );
+}
+
+#[test]
+fn code_block_preserves_single_trailing_newline() {
+    // Source already has exactly one trailing newline — don't double it
+    assert_eq!(
+        html("```js\nconsole.log(1)\n```"),
+        "<pre><code class=\"language-js\">console.log(1)\n</code></pre>\n"
+    );
+}
+
+// Table column alignment: mdast→hast emits `style="text-align: ..."` on
+// each cell (both <th> and <td>) based on the delimiter row.
+
+#[test]
+fn table_column_alignments() {
+    assert_eq!(
+        html("| a | b | c |\n| :--- | :---: | ---: |\n| 1 | 2 | 3 |\n"),
+        "<table>\
+         <thead>\
+         <tr>\
+         <th style=\"text-align: left\">a</th>\
+         <th style=\"text-align: center\">b</th>\
+         <th style=\"text-align: right\">c</th>\
+         </tr>\
+         </thead>\
+         <tbody>\
+         <tr>\
+         <td style=\"text-align: left\">1</td>\
+         <td style=\"text-align: center\">2</td>\
+         <td style=\"text-align: right\">3</td>\
+         </tr>\
+         </tbody>\
+         </table>\n"
+    );
+}
+
+#[test]
+fn table_no_alignment_omits_style() {
+    assert_eq!(
+        html("| a | b |\n|---|---|\n| 1 | 2 |"),
+        "<table>\
+         <thead><tr><th>a</th><th>b</th></tr></thead>\
+         <tbody><tr><td>1</td><td>2</td></tr></tbody>\
+         </table>\n"
+    );
+}
+
+// Footnotes: pulldown-cmark-style output. References become
+// `<sup class="footnote-reference"><a href="#id">N</a></sup>`; definitions
+// become `<div class="footnote-definition" id="id"><sup class="footnote-definition-label">N</sup>…</div>`.
+// Numbers are assigned in source order across both references and definitions.
+
+#[test]
+fn footnote_single_reference_and_definition() {
+    assert_eq!(
+        html("Here[^1].\n\n[^1]: the note"),
+        "<p>Here<sup class=\"footnote-reference\"><a href=\"#1\">1</a></sup>.</p>\n\
+         <div class=\"footnote-definition\" id=\"1\">\
+         <sup class=\"footnote-definition-label\">1</sup>\
+         <p>the note</p>\n\
+         </div>\n"
+    );
+}
+
+#[test]
+fn footnote_numbers_follow_source_order() {
+    // `b` is referenced before `a` in the body, so numbering becomes b=1, a=2
+    // — even though the definitions appear in order a, b.
+    assert_eq!(
+        html("See[^b] then[^a].\n\n[^a]: first def\n[^b]: second def"),
+        concat!(
+            "<p>See<sup class=\"footnote-reference\"><a href=\"#b\">1</a></sup>",
+            " then<sup class=\"footnote-reference\"><a href=\"#a\">2</a></sup>.</p>\n",
+            "<div class=\"footnote-definition\" id=\"a\">",
+            "<sup class=\"footnote-definition-label\">2</sup>",
+            "<p>first def</p>\n",
+            "</div>\n",
+            "<div class=\"footnote-definition\" id=\"b\">",
+            "<sup class=\"footnote-definition-label\">1</sup>",
+            "<p>second def</p>\n",
+            "</div>\n",
+        )
+    );
+}

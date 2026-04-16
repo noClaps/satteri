@@ -218,6 +218,13 @@ impl FootnoteDefinitionData {
         buf[8..16].copy_from_slice(&self.label.as_bytes());
         buf
     }
+
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        Self {
+            identifier: StringRef::from_bytes(&bytes[0..8]),
+            label: StringRef::from_bytes(&bytes[8..16]),
+        }
+    }
 }
 
 /// `title.len == 0` means no title.
@@ -394,6 +401,21 @@ pub fn encode_table_data(alignments: &[ColumnAlign]) -> Vec<u8> {
     bytes
 }
 
+pub fn decode_table_alignments(bytes: &[u8]) -> Vec<ColumnAlign> {
+    if bytes.len() < 4 {
+        return Vec::new();
+    }
+    let count = u32::from_ne_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]) as usize;
+    let end = 4 + count;
+    if bytes.len() < end {
+        return Vec::new();
+    }
+    bytes[4..end]
+        .iter()
+        .map(|&b| ColumnAlign::from_u8(b).unwrap_or(ColumnAlign::None))
+        .collect()
+}
+
 pub fn encode_reference_data(
     identifier: StringRef,
     label: StringRef,
@@ -411,6 +433,10 @@ pub fn encode_reference_data(
 
 pub fn decode_reference_data(bytes: &[u8]) -> ReferenceData {
     ReferenceData::from_bytes(bytes)
+}
+
+pub fn decode_footnote_definition_data(bytes: &[u8]) -> FootnoteDefinitionData {
+    FootnoteDefinitionData::from_bytes(bytes)
 }
 
 pub fn encode_footnote_definition_data(identifier: StringRef, label: StringRef) -> Vec<u8> {

@@ -2,6 +2,7 @@
 
 pub mod codec;
 pub mod node;
+pub mod properties;
 pub mod render;
 
 pub use crate::convert::mdast_arena_to_hast_arena;

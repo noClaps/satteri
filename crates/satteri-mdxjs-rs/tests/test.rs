@@ -649,3 +649,109 @@ fn mixed_explicit_and_implicit_tag_routes_implicit_only()
     );
     Ok(())
 }
+
+#[test]
+fn children_arrow_returning_string() -> Result<(), satteri_arena::mdx_types::Message> {
+    // An arrow function as element body must be preserved as `children`,
+    // not discarded when the element would otherwise look single-line.
+    let result = compile(
+        "import Comp from './Comp.astro';\n\n<Comp id=\"test\">{() => \"hello\"}</Comp>\n",
+        &Options::default(),
+        MDX_OPTS,
+    )?;
+    assert!(
+        result.contains("children: () => \"hello\""),
+        "arrow-returning-string child must be kept: {result}"
+    );
+    assert!(
+        result.contains("_jsx(Comp, {"),
+        "outer element should compile to _jsx(Comp, ...): {result}"
+    );
+    Ok(())
+}
+
+#[test]
+fn children_arrow_returning_jsx() -> Result<(), satteri_arena::mdx_types::Message> {
+    // JSX inside an arrow function body must itself be transformed to _jsx(...).
+    let result = compile(
+        "import Comp from './Comp.astro';\n\n<Comp id=\"test\">{(text) => <span>{text}</span>}</Comp>\n",
+        &Options::default(),
+        MDX_OPTS,
+    )?;
+    assert!(
+        result.contains("children: (text) => _jsx(_components.span, { children: text })"),
+        "JSX inside arrow body must be transformed: {result}"
+    );
+    Ok(())
+}
+
+#[test]
+fn jsx_inside_map_callback() -> Result<(), satteri_arena::mdx_types::Message> {
+    // `items.map(x => <li>{x}</li>)` must produce _jsx calls in the callback,
+    // not leave raw JSX in the compiled output.
+    let result = compile(
+        "export const items = [\"a\", \"b\"];\n\n<ul>\n  {items.map(x => <li>{x}</li>)}\n</ul>\n",
+        &Options::default(),
+        MDX_OPTS,
+    )?;
+    assert!(
+        result.contains("items.map((x) => _jsx(_components.li, { children: x }))"),
+        "JSX inside .map callback must be transformed: {result}"
+    );
+    assert!(
+        !result.contains("<li>") && !result.contains("</li>"),
+        "compiled output must not contain raw JSX: {result}"
+    );
+    Ok(())
+}
+
+#[test]
+fn jsx_inside_flow_expression_block() -> Result<(), satteri_arena::mdx_types::Message> {
+    // A block-level `{expression}` containing JSX (e.g. inside a div) must
+    // recurse into the expression body and transform the inner JSX.
+    let result = compile(
+        "export const data = [1, 2, 3];\n\n<div class=\"list\">\n  {data.map(i => (\n    <span>{i}</span>\n  ))}\n</div>\n",
+        &Options::default(),
+        MDX_OPTS,
+    )?;
+    assert!(
+        result.contains("data.map((i) => _jsx(_components.span, { children: i }))"),
+        "JSX inside block-level expression must be transformed: {result}"
+    );
+    assert!(
+        !result.contains("<span>") && !result.contains("</span>"),
+        "compiled output must not contain raw JSX: {result}"
+    );
+    Ok(())
+}
+
+#[test]
+fn jsx_inside_template_literal() -> Result<(), satteri_arena::mdx_types::Message> {
+    // Template literals can contain JSX via `${...}` interpolation; the
+    // transform must recurse through the template expression parts.
+    let result = compile(
+        "<div>{`prefix ${<span>x</span>} suffix`}</div>\n",
+        &Options::default(),
+        MDX_OPTS,
+    )?;
+    assert!(
+        result.contains("_jsx(\"span\", { children: \"x\" })"),
+        "JSX inside template literal interpolation must be transformed: {result}"
+    );
+    Ok(())
+}
+
+#[test]
+fn jsx_inside_new_expression() -> Result<(), satteri_arena::mdx_types::Message> {
+    // `new Thing(<foo />)` — JSX in arg lists of NewExpression must recurse.
+    let result = compile(
+        "<div>{new Wrapper(<span>y</span>)}</div>\n",
+        &Options::default(),
+        MDX_OPTS,
+    )?;
+    assert!(
+        result.contains("new Wrapper(_jsx(\"span\", { children: \"y\" }))"),
+        "JSX inside NewExpression must be transformed: {result}"
+    );
+    Ok(())
+}

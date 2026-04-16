@@ -441,6 +441,16 @@ pub(crate) fn scan_mdx_jsx_block(bytes: &[u8]) -> Option<usize> {
     // on the same line (e.g., `<a></a>`, `<a/>{1}`, `{1}<a/>`).
     let mut pos = scan_mdx_jsx_tag_end(bytes)?;
 
+    // When the first tag is opening (not self-closing, not closing), anything
+    // between it and its matching closer is element body. Accept more JSX
+    // tags (which will be balanced in a later pass), but reject inline
+    // `{expression}` and bare text — those are children that would be lost
+    // if we claimed this line as a single flow element. Letting the line
+    // fall through to paragraph parsing yields an `MdxJsxTextElement` with
+    // the expression/text preserved as a child.
+    let first_is_self_closing = pos >= 2 && bytes[pos - 2] == b'/' && bytes[pos - 1] == b'>';
+    let first_is_opening = !is_closing && !first_is_self_closing;
+
     // Consume any subsequent tags or expressions on the same line.
     loop {
         // Skip whitespace
@@ -457,8 +467,14 @@ pub(crate) fn scan_mdx_jsx_block(bytes: &[u8]) -> Option<usize> {
                 continue;
             }
         }
-        // Try an expression
+        // Try an expression. When the first tag was opening (e.g. `<Foo>{x}</Foo>`),
+        // the `{x}` is element body — refuse to claim the line as flow so it falls
+        // through to paragraph parsing, where it becomes an `MdxJsxTextElement`
+        // with the expression preserved as a child.
         if bytes[pos] == b'{' {
+            if first_is_opening {
+                return None;
+            }
             if let Some((_, _, len)) = scan_mdx_inline_expression(&bytes[pos..]) {
                 pos += len;
                 continue;

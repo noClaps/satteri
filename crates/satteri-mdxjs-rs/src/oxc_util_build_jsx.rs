@@ -750,6 +750,211 @@ fn process_sub_expressions<'a>(
                 import_jsx_dev,
             )?;
         }
+        Expression::ArrowFunctionExpression(arrow) => {
+            for s in &mut arrow.body.statements {
+                process_statement_jsx(
+                    s,
+                    alloc,
+                    automatic,
+                    development,
+                    filepath,
+                    location,
+                    create_element_name,
+                    fragment_name,
+                    import_fragment,
+                    import_jsx,
+                    import_jsxs,
+                    import_jsx_dev,
+                )?;
+            }
+        }
+        Expression::FunctionExpression(func) => {
+            if let Some(body) = &mut func.body {
+                for s in &mut body.statements {
+                    process_statement_jsx(
+                        s,
+                        alloc,
+                        automatic,
+                        development,
+                        filepath,
+                        location,
+                        create_element_name,
+                        fragment_name,
+                        import_fragment,
+                        import_jsx,
+                        import_jsxs,
+                        import_jsx_dev,
+                    )?;
+                }
+            }
+        }
+        Expression::SequenceExpression(seq) => {
+            for e in &mut seq.expressions {
+                process_expression_jsx(
+                    e,
+                    alloc,
+                    automatic,
+                    development,
+                    filepath,
+                    location,
+                    create_element_name,
+                    fragment_name,
+                    import_fragment,
+                    import_jsx,
+                    import_jsxs,
+                    import_jsx_dev,
+                )?;
+            }
+        }
+        Expression::UnaryExpression(unary) => {
+            process_expression_jsx(
+                &mut unary.argument,
+                alloc,
+                automatic,
+                development,
+                filepath,
+                location,
+                create_element_name,
+                fragment_name,
+                import_fragment,
+                import_jsx,
+                import_jsxs,
+                import_jsx_dev,
+            )?;
+        }
+        Expression::AwaitExpression(await_expr) => {
+            process_expression_jsx(
+                &mut await_expr.argument,
+                alloc,
+                automatic,
+                development,
+                filepath,
+                location,
+                create_element_name,
+                fragment_name,
+                import_fragment,
+                import_jsx,
+                import_jsxs,
+                import_jsx_dev,
+            )?;
+        }
+        Expression::YieldExpression(yield_expr) => {
+            if let Some(arg) = &mut yield_expr.argument {
+                process_expression_jsx(
+                    arg,
+                    alloc,
+                    automatic,
+                    development,
+                    filepath,
+                    location,
+                    create_element_name,
+                    fragment_name,
+                    import_fragment,
+                    import_jsx,
+                    import_jsxs,
+                    import_jsx_dev,
+                )?;
+            }
+        }
+        Expression::NewExpression(new_expr) => {
+            process_expression_jsx(
+                &mut new_expr.callee,
+                alloc,
+                automatic,
+                development,
+                filepath,
+                location,
+                create_element_name,
+                fragment_name,
+                import_fragment,
+                import_jsx,
+                import_jsxs,
+                import_jsx_dev,
+            )?;
+            for arg in &mut new_expr.arguments {
+                if let Argument::SpreadElement(spread) = arg {
+                    process_expression_jsx(
+                        &mut spread.argument,
+                        alloc,
+                        automatic,
+                        development,
+                        filepath,
+                        location,
+                        create_element_name,
+                        fragment_name,
+                        import_fragment,
+                        import_jsx,
+                        import_jsxs,
+                        import_jsx_dev,
+                    )?;
+                } else if let Some(expr) = arg.as_expression_mut() {
+                    process_expression_jsx(
+                        expr,
+                        alloc,
+                        automatic,
+                        development,
+                        filepath,
+                        location,
+                        create_element_name,
+                        fragment_name,
+                        import_fragment,
+                        import_jsx,
+                        import_jsxs,
+                        import_jsx_dev,
+                    )?;
+                }
+            }
+        }
+        Expression::TemplateLiteral(tmpl) => {
+            for e in &mut tmpl.expressions {
+                process_expression_jsx(
+                    e,
+                    alloc,
+                    automatic,
+                    development,
+                    filepath,
+                    location,
+                    create_element_name,
+                    fragment_name,
+                    import_fragment,
+                    import_jsx,
+                    import_jsxs,
+                    import_jsx_dev,
+                )?;
+            }
+        }
+        Expression::TaggedTemplateExpression(tagged) => {
+            process_expression_jsx(
+                &mut tagged.tag,
+                alloc,
+                automatic,
+                development,
+                filepath,
+                location,
+                create_element_name,
+                fragment_name,
+                import_fragment,
+                import_jsx,
+                import_jsxs,
+                import_jsx_dev,
+            )?;
+            for e in &mut tagged.quasi.expressions {
+                process_expression_jsx(
+                    e,
+                    alloc,
+                    automatic,
+                    development,
+                    filepath,
+                    location,
+                    create_element_name,
+                    fragment_name,
+                    import_fragment,
+                    import_jsx,
+                    import_jsxs,
+                    import_jsx_dev,
+                )?;
+            }
+        }
         _ => {}
     }
     Ok(())

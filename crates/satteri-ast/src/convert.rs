@@ -584,9 +584,7 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
             builder.close_node();
         }
 
-        Some(MdastNodeType::Definition)
-        | Some(MdastNodeType::Yaml)
-        | Some(MdastNodeType::Toml) => {
+        Some(MdastNodeType::Definition) | Some(MdastNodeType::Yaml) | Some(MdastNodeType::Toml) => {
             // No HAST output
         }
 
@@ -669,8 +667,7 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
                 let href = format!("#{}", identifier);
                 let href_ref = builder.alloc_string(&href);
                 let class_ref = builder.alloc_string("footnote-reference");
-                let sup_props =
-                    build_props(builder, &[("class", PROP_SPACE_SEP, class_ref)]);
+                let sup_props = build_props(builder, &[("class", PROP_SPACE_SEP, class_ref)]);
                 open_element_with_props(builder, "sup", &sup_props);
                 copy_position(node_id, view, builder);
                 let a_props = build_props(builder, &[("href", PROP_STRING, href_ref)]);
@@ -818,7 +815,12 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
     }
 }
 
-fn convert_children(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &ConvertCtx<'_, '_>) {
+fn convert_children(
+    node_id: u32,
+    view: &Arena,
+    builder: &mut ArenaBuilder,
+    ctx: &ConvertCtx<'_, '_>,
+) {
     let children = view.get_children(node_id);
     for &child_id in children {
         convert_node(child_id, view, builder, ctx);
@@ -873,7 +875,10 @@ fn convert_table_row(
     let cell_ids = view.get_children(row_id);
     let cell_tag = if is_header { "th" } else { "td" };
     for (col_idx, &cell_id) in cell_ids.iter().enumerate() {
-        let align = alignments.get(col_idx).copied().unwrap_or(ColumnAlign::None);
+        let align = alignments
+            .get(col_idx)
+            .copied()
+            .unwrap_or(ColumnAlign::None);
         let style = match align {
             ColumnAlign::None => None,
             ColumnAlign::Left => Some("text-align: left"),

@@ -136,7 +136,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                     // content that belongs to an existing list item.
                     let extra = line_start.scan_space_upto(usize::MAX);
                     let mdx_ix = start_ix + line_start.bytes_scanned();
-                    let has_directive = self.options.contains(Options::ENABLE_CONTAINER_EXTENSIONS)
+                    let has_directive = self.options.contains(Options::ENABLE_DIRECTIVE)
                         && scan_ch_repeat(&bytes[mdx_ix..], b':') > 1;
                     let has_container = scan_listitem(&bytes[mdx_ix..]).is_some()
                         || (mdx_ix < bytes.len() && bytes[mdx_ix] == b'>')
@@ -394,7 +394,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                         break;
                     }
                 }
-            } else if self.options.contains(Options::ENABLE_CONTAINER_EXTENSIONS)
+            } else if self.options.contains(Options::ENABLE_DIRECTIVE)
                 && scan_ch_repeat(&bytes[(start_ix + line_start.bytes_scanned())..], b':') > 1
             {
                 let colon_start = start_ix + line_start.bytes_scanned();
@@ -458,7 +458,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
             }
         }
 
-        if self.options.contains(Options::ENABLE_CONTAINER_EXTENSIONS) {
+        if self.options.contains(Options::ENABLE_DIRECTIVE) {
             let mut pop_count = None;
             let mut fence_line_end = start_ix;
             // Closing fence may be indented up to 3 spaces relative to the
@@ -1129,7 +1129,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                         scan_listitem(suffix).is_some() || scan_blockquote_start(suffix).is_some();
                     break;
                 }
-                if self.options.contains(Options::ENABLE_CONTAINER_EXTENSIONS)
+                if self.options.contains(Options::ENABLE_DIRECTIVE)
                     && !current_container
                     && line_start.scan_closing_container_extensions_fence(3)
                 {
@@ -1144,7 +1144,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                 break;
             }
 
-            if self.options.contains(Options::ENABLE_CONTAINER_EXTENSIONS) {
+            if self.options.contains(Options::ENABLE_DIRECTIVE) {
                 let mut closes = false;
                 for &node_ix in self.tree.walk_spine().rev().skip(1) {
                     match self.tree[node_ix].item.body {
@@ -1644,7 +1644,7 @@ impl<'a, 'b> FirstPass<'a, 'b> {
                     }
                     _ => LoopInstruction::ContinueAndSkip(0),
                 },
-                b':' if self.options.contains(Options::ENABLE_CONTAINER_EXTENSIONS) => {
+                b':' if self.options.contains(Options::ENABLE_DIRECTIVE) => {
                     // Text directive: :name[label]{attrs}
                     // Must not be preceded by another colon (to avoid ::, :::)
                     if ix > 0 && bytes[ix - 1] == b':' {
@@ -3454,7 +3454,7 @@ fn special_bytes(options: &Options) -> [bool; 256] {
         bytes[b'"' as usize] = true;
         bytes[b'\'' as usize] = true;
     }
-    if options.contains(Options::ENABLE_CONTAINER_EXTENSIONS) {
+    if options.contains(Options::ENABLE_DIRECTIVE) {
         bytes[b':' as usize] = true;
     }
 

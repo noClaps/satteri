@@ -34,7 +34,7 @@ pub fn test_markdown_html(
         opts.insert(Options::ENABLE_DEFINITION_LIST);
     }
     if container_extensions {
-        opts.insert(Options::ENABLE_CONTAINER_EXTENSIONS);
+        opts.insert(Options::ENABLE_DIRECTIVE);
     }
 
     let (arena, _) = satteri_pulldown_cmark::parse(input, opts);

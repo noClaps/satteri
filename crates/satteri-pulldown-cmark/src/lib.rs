@@ -199,7 +199,7 @@ pub enum Tag<'a> {
     /// A code block.
     CodeBlock(CodeBlockKind<'a>),
     /// A directive (container, leaf, or text).
-    /// Only parsed and emitted with [`Options::ENABLE_CONTAINER_EXTENSIONS`].
+    /// Only parsed and emitted with [`Options::ENABLE_DIRECTIVE`].
     Directive {
         kind: DirectiveKind,
         name: CowStr<'a>,
@@ -812,7 +812,7 @@ bitflags::bitflags! {
         /// Obsidian-style Wikilinks.
         const ENABLE_WIKILINKS = 1 << 15;
         /// Directives: container (:::), leaf (::), and text (:) directives.
-        const ENABLE_CONTAINER_EXTENSIONS = 1 << 16;
+        const ENABLE_DIRECTIVE = 1 << 16;
         /// MDX: enables JSX elements, expressions, and ESM import/export.
         const ENABLE_MDX = 1 << 17;
     }

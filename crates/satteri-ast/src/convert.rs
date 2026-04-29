@@ -15,6 +15,265 @@ use crate::mdast::{
 };
 use crate::shared::{PROP_BOOL_FALSE, PROP_BOOL_TRUE, PROP_INT, PROP_SPACE_SEP, PROP_STRING};
 
+/// Owned view over `data.hName` / `data.hProperties` / `data.hChildren` for a
+/// single mdast node. Mirrors mdast-util-to-hast's `applyData` semantics: a JS
+/// plugin sets these fields and the converter honours them when emitting hast.
+struct HData {
+    root: Option<serde_json::Value>,
+}
+
+impl HData {
+    fn read(view: &Arena, node_id: u32) -> Self {
+        let bytes = match view.get_node_data(node_id) {
+            Some(b) if !b.is_empty() => b,
+            _ => return HData { root: None },
+        };
+        // Most node_data blobs are unrelated to hast emission (e.g. code
+        // language/meta JSON, plugin-private metadata). Bail out before paying
+        // for `serde_json::from_slice` if none of the three keys are present
+        // as quoted JSON keys. The substrings include the leading `"` so they
+        // can't match an `hName` *value* embedded in user data.
+        if !contains_h_key(bytes) {
+            return HData { root: None };
+        }
+        let parsed: serde_json::Value = match serde_json::from_slice(bytes) {
+            Ok(v) => v,
+            Err(_) => return HData { root: None },
+        };
+        if !matches!(parsed, serde_json::Value::Object(_)) {
+            return HData { root: None };
+        }
+        HData { root: Some(parsed) }
+    }
+
+    fn h_name(&self) -> Option<&str> {
+        self.root.as_ref()?.as_object()?.get("hName")?.as_str()
+    }
+
+    fn h_properties(&self) -> Option<&serde_json::Map<String, serde_json::Value>> {
+        self.root.as_ref()?.as_object()?.get("hProperties")?.as_object()
+    }
+
+    fn h_children(&self) -> Option<&[serde_json::Value]> {
+        self.root
+            .as_ref()?
+            .as_object()?
+            .get("hChildren")?
+            .as_array()
+            .map(|v| v.as_slice())
+    }
+
+    fn is_empty(&self) -> bool {
+        self.h_name().is_none() && self.h_properties().is_none() && self.h_children().is_none()
+    }
+}
+
+/// Quick byte scan for any of the three quoted h-keys. False positives just
+/// fall through to a real JSON parse, so this needs to be cheap, not perfect.
+fn contains_h_key(bytes: &[u8]) -> bool {
+    // The shortest key is `"hName"` (7 bytes including quotes). Anything
+    // smaller can't match.
+    if bytes.len() < 7 {
+        return false;
+    }
+    // Walk the buffer once; whenever we see `"h`, peek at the next byte to
+    // route to the right candidate. Avoids three full passes.
+    let mut i = 0;
+    while i + 1 < bytes.len() {
+        if bytes[i] == b'"' && bytes[i + 1] == b'h' && i + 2 < bytes.len() {
+            let rest = &bytes[i + 2..];
+            let matched = match rest.first() {
+                Some(b'N') => rest.starts_with(b"Name\""),
+                Some(b'P') => rest.starts_with(b"Properties\""),
+                Some(b'C') => rest.starts_with(b"Children\""),
+                _ => false,
+            };
+            if matched {
+                return true;
+            }
+        }
+        i += 1;
+    }
+    false
+}
+
+/// Convert a JSON value to an h-property entry.
+/// Returns `None` for `null`/`undefined` (property is stripped) and for
+/// unsupported value shapes (e.g. nested objects).
+fn json_value_to_prop(
+    builder: &mut ArenaBuilder,
+    value: &serde_json::Value,
+) -> Option<(u8, StringRef)> {
+    match value {
+        serde_json::Value::Null => None,
+        serde_json::Value::Bool(true) => Some((PROP_BOOL_TRUE, StringRef::empty())),
+        serde_json::Value::Bool(false) => Some((PROP_BOOL_FALSE, StringRef::empty())),
+        serde_json::Value::String(s) => Some((PROP_STRING, builder.alloc_string(s))),
+        serde_json::Value::Number(n) => {
+            let s = n.to_string();
+            Some((PROP_INT, builder.alloc_string(&s)))
+        }
+        serde_json::Value::Array(arr) => {
+            let joined: String = arr
+                .iter()
+                .filter_map(|v| v.as_str())
+                .collect::<Vec<_>>()
+                .join(" ");
+            Some((PROP_SPACE_SEP, builder.alloc_string(&joined)))
+        }
+        serde_json::Value::Object(_) => None,
+    }
+}
+
+/// Merge default specs with `hProperties` overrides. Later wins; `null` strips.
+/// Returns a list of `PropData` ready to be passed to `open_element_with_props`.
+fn merged_h_props(
+    builder: &mut ArenaBuilder,
+    defaults: &[(&str, u8, StringRef)],
+    overrides: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> Vec<PropData> {
+    let mut entries: Vec<(String, u8, StringRef)> = defaults
+        .iter()
+        .map(|(n, k, v)| ((*n).to_string(), *k, *v))
+        .collect();
+    if let Some(overrides) = overrides {
+        for (name, value) in overrides {
+            let idx = entries.iter().position(|(n, _, _)| n == name);
+            let entry = json_value_to_prop(builder, value);
+            match (entry, idx) {
+                (None, Some(i)) => {
+                    entries.remove(i);
+                }
+                (None, None) => {}
+                (Some((kind, val)), Some(i)) => entries[i] = (name.clone(), kind, val),
+                (Some((kind, val)), None) => entries.push((name.clone(), kind, val)),
+            }
+        }
+    }
+    entries
+        .into_iter()
+        .map(|(name, kind, value)| PropData {
+            name_ref: builder.alloc_string(&name),
+            value_kind: kind,
+            value_ref: value,
+        })
+        .collect()
+}
+
+/// Whether the caller still needs to emit the mdast node's children, or
+/// whether `hChildren` already replaced them.
+enum ChildrenAction {
+    Recurse,
+    Replaced,
+}
+
+/// Open an HTML element honouring `hName` / `hProperties` / `hChildren` on the
+/// source mdast node. The caller is responsible for `close_node` and
+/// `copy_position` afterwards.
+fn open_h_element(
+    builder: &mut ArenaBuilder,
+    view: &Arena,
+    src_id: u32,
+    default_tag: &str,
+    default_specs: &[(&str, u8, StringRef)],
+) -> ChildrenAction {
+    let h = HData::read(view, src_id);
+    if h.is_empty() {
+        if default_specs.is_empty() {
+            open_element(builder, default_tag);
+        } else {
+            open_element_with_specs(builder, default_tag, default_specs);
+        }
+        return ChildrenAction::Recurse;
+    }
+    let tag = h.h_name().unwrap_or(default_tag);
+    let props = merged_h_props(builder, default_specs, h.h_properties());
+    open_element_with_props(builder, tag, &props);
+    if let Some(children) = h.h_children() {
+        emit_h_children(builder, children);
+        ChildrenAction::Replaced
+    } else {
+        ChildrenAction::Recurse
+    }
+}
+
+/// Same as `open_h_element` but for void elements (no children, builder closes
+/// the node automatically). `hChildren` is ignored on void elements.
+fn add_h_void_element(
+    builder: &mut ArenaBuilder,
+    view: &Arena,
+    src_id: u32,
+    default_tag: &str,
+    default_specs: &[(&str, u8, StringRef)],
+) -> u32 {
+    let h = HData::read(view, src_id);
+    if h.is_empty() {
+        return if default_specs.is_empty() {
+            add_void_element(builder, default_tag)
+        } else {
+            add_void_element_with_specs(builder, default_tag, default_specs)
+        };
+    }
+    let tag = h.h_name().unwrap_or(default_tag);
+    let props = merged_h_props(builder, default_specs, h.h_properties());
+    add_void_element_with_props(builder, tag, &props)
+}
+
+/// Emit a list of hast nodes (from `data.hChildren`) into the builder. The
+/// children are JSON-encoded hast nodes — `element` / `text` / `comment` /
+/// `raw` are supported; anything else is silently skipped.
+fn emit_h_children(builder: &mut ArenaBuilder, children: &[serde_json::Value]) {
+    for child in children {
+        emit_h_child(builder, child);
+    }
+}
+
+fn emit_h_child(builder: &mut ArenaBuilder, child: &serde_json::Value) {
+    let Some(obj) = child.as_object() else {
+        return;
+    };
+    let ty = obj.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    match ty {
+        "element" => {
+            let tag = obj.get("tagName").and_then(|v| v.as_str()).unwrap_or("div");
+            let mut props: Vec<PropData> = Vec::new();
+            if let Some(properties) = obj.get("properties").and_then(|v| v.as_object()) {
+                for (name, value) in properties {
+                    if let Some((kind, val)) = json_value_to_prop(builder, value) {
+                        props.push(PropData {
+                            name_ref: builder.alloc_string(name),
+                            value_kind: kind,
+                            value_ref: val,
+                        });
+                    }
+                }
+            }
+            open_element_with_props(builder, tag, &props);
+            if let Some(grand) = obj.get("children").and_then(|v| v.as_array()) {
+                emit_h_children(builder, grand);
+            }
+            builder.close_node();
+        }
+        "text" => {
+            let value = obj.get("value").and_then(|v| v.as_str()).unwrap_or("");
+            add_text_node(builder, value);
+        }
+        "comment" => {
+            let value = obj.get("value").and_then(|v| v.as_str()).unwrap_or("");
+            let value_ref = builder.alloc_string(value);
+            let leaf_id = builder.add_leaf_raw(HastNodeType::Comment as u8);
+            builder
+                .arena_mut()
+                .set_type_data(leaf_id, &value_ref.as_bytes());
+        }
+        "raw" => {
+            let value = obj.get("value").and_then(|v| v.as_str()).unwrap_or("");
+            add_raw_node(builder, value);
+        }
+        _ => {}
+    }
+}
+
 fn encode_url(builder: &mut ArenaBuilder, url: &str) -> StringRef {
     if url.bytes().all(is_url_safe) {
         return builder.alloc_string(url);
@@ -574,9 +833,11 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
         Some(MdastNodeType::Paragraph) => {
             // Note: MDX paragraph unraveling is handled by convert_children_wrapped
             // at the parent level, so by the time we get here it's a normal <p>.
-            open_element(builder, "p");
+            let action = open_h_element(builder, view, node_id, "p", &[]);
             copy_position(node_id, view, builder);
-            convert_children(node_id, view, builder, ctx);
+            if matches!(action, ChildrenAction::Recurse) {
+                convert_children(node_id, view, builder, ctx);
+            }
             builder.close_node();
         }
 
@@ -595,21 +856,25 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
                 5 => "h5",
                 _ => "h6",
             };
-            open_element(builder, tag);
+            let action = open_h_element(builder, view, node_id, tag, &[]);
             copy_position(node_id, view, builder);
-            convert_children(node_id, view, builder, ctx);
+            if matches!(action, ChildrenAction::Recurse) {
+                convert_children(node_id, view, builder, ctx);
+            }
             builder.close_node();
         }
 
         Some(MdastNodeType::ThematicBreak) => {
-            let id = add_void_element(builder, "hr");
+            let id = add_h_void_element(builder, view, node_id, "hr", &[]);
             copy_position_to(id, node_id, view, builder);
         }
 
         Some(MdastNodeType::Blockquote) => {
-            open_element(builder, "blockquote");
+            let action = open_h_element(builder, view, node_id, "blockquote", &[]);
             copy_position(node_id, view, builder);
-            convert_children_with_newlines(node_id, view, builder, ctx);
+            if matches!(action, ChildrenAction::Recurse) {
+                convert_children_with_newlines(node_id, view, builder, ctx);
+            }
             builder.close_node();
         }
 
@@ -633,14 +898,11 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
                 prop_specs.push(("className", PROP_SPACE_SEP, class_ref));
             }
 
-            if prop_specs.is_empty() {
-                open_element(builder, tag);
-            } else {
-                let props = build_props(builder, &prop_specs);
-                open_element_with_props(builder, tag, &props);
-            }
+            let action = open_h_element(builder, view, node_id, tag, &prop_specs);
             copy_position(node_id, view, builder);
-            convert_children_with_newlines(node_id, view, builder, ctx);
+            if matches!(action, ChildrenAction::Recurse) {
+                convert_children_with_newlines(node_id, view, builder, ctx);
+            }
             builder.close_node();
         }
 
@@ -653,13 +915,23 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
             };
             let is_task = item_data.is_some_and(|d| d.checked != 2);
 
-            if is_task {
-                let class_ref = builder.alloc_string("task-list-item");
-                open_element_with_specs(builder, "li", &[("className", PROP_SPACE_SEP, class_ref)]);
+            let task_class_ref;
+            let task_specs: [(&str, u8, StringRef); 1];
+            let li_specs: &[(&str, u8, StringRef)] = if is_task {
+                task_class_ref = builder.alloc_string("task-list-item");
+                task_specs = [("className", PROP_SPACE_SEP, task_class_ref)];
+                &task_specs
             } else {
-                open_element(builder, "li");
-            }
+                &[]
+            };
+            // hChildren replaces the rendered children; skip task-checkbox /
+            // paragraph-unwrap behavior in that case.
+            let action = open_h_element(builder, view, node_id, "li", li_specs);
             copy_position(node_id, view, builder);
+            if matches!(action, ChildrenAction::Replaced) {
+                builder.close_node();
+                return;
+            }
 
             let parent_id = view.get_node(node_id).parent;
             let loose = {
@@ -706,8 +978,16 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
             let code_data = decode_code_data(data);
             let value = view.get_str(code_data.value);
 
-            open_element(builder, "pre");
+            // hName/hProperties on the code mdast node override the outer
+            // <pre>; the inner <code> remains as remark-rehype emits it.
+            // hChildren on a code node replaces the pre's children entirely
+            // (no <code>, just whatever the user provided).
+            let action = open_h_element(builder, view, node_id, "pre", &[]);
             copy_position(node_id, view, builder);
+            if matches!(action, ChildrenAction::Replaced) {
+                builder.close_node();
+                return;
+            }
             let code_id = if code_data.lang.len > 0 {
                 let lang = view.get_str(code_data.lang);
                 let class_val = format!("language-{}", lang);
@@ -747,38 +1027,44 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
         }
 
         Some(MdastNodeType::Emphasis) => {
-            open_element(builder, "em");
+            let action = open_h_element(builder, view, node_id, "em", &[]);
             copy_position(node_id, view, builder);
-            convert_children(node_id, view, builder, ctx);
+            if matches!(action, ChildrenAction::Recurse) {
+                convert_children(node_id, view, builder, ctx);
+            }
             builder.close_node();
         }
 
         Some(MdastNodeType::Strong) => {
-            open_element(builder, "strong");
+            let action = open_h_element(builder, view, node_id, "strong", &[]);
             copy_position(node_id, view, builder);
-            convert_children(node_id, view, builder, ctx);
+            if matches!(action, ChildrenAction::Recurse) {
+                convert_children(node_id, view, builder, ctx);
+            }
             builder.close_node();
         }
 
         Some(MdastNodeType::InlineCode) => {
             let data = view.get_type_data(node_id);
             let string_ref = decode_string_ref_data(data);
-            open_element(builder, "code");
+            let action = open_h_element(builder, view, node_id, "code", &[]);
             copy_position(node_id, view, builder);
-            let value = view.get_str(string_ref);
-            if value.contains('\n') {
-                let normalized = value.replace('\n', " ");
-                let text_id = add_text_node(builder, &normalized);
-                copy_position_to(text_id, node_id, view, builder);
-            } else {
-                let text_id = add_text_node(builder, value);
-                copy_position_to(text_id, node_id, view, builder);
+            if matches!(action, ChildrenAction::Recurse) {
+                let value = view.get_str(string_ref);
+                if value.contains('\n') {
+                    let normalized = value.replace('\n', " ");
+                    let text_id = add_text_node(builder, &normalized);
+                    copy_position_to(text_id, node_id, view, builder);
+                } else {
+                    let text_id = add_text_node(builder, value);
+                    copy_position_to(text_id, node_id, view, builder);
+                }
             }
             builder.close_node();
         }
 
         Some(MdastNodeType::Break) => {
-            let id = add_void_element(builder, "br");
+            let id = add_h_void_element(builder, view, node_id, "br", &[]);
             copy_position_to(id, node_id, view, builder);
             add_text_node_with_ref(builder, ctx.newline_ref);
         }
@@ -787,20 +1073,19 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
             let data = view.get_type_data(node_id);
             let link_data = decode_link_data(data);
             let url_ref = encode_url(builder, view.get_str(link_data.url));
-            if link_data.title.len > 0 {
-                open_element_with_specs(
-                    builder,
-                    "a",
-                    &[
-                        ("href", PROP_STRING, url_ref),
-                        ("title", PROP_STRING, link_data.title),
-                    ],
-                );
+            let specs: Vec<(&str, u8, StringRef)> = if link_data.title.len > 0 {
+                vec![
+                    ("href", PROP_STRING, url_ref),
+                    ("title", PROP_STRING, link_data.title),
+                ]
             } else {
-                open_element_with_specs(builder, "a", &[("href", PROP_STRING, url_ref)]);
-            }
+                vec![("href", PROP_STRING, url_ref)]
+            };
+            let action = open_h_element(builder, view, node_id, "a", &specs);
             copy_position(node_id, view, builder);
-            convert_children(node_id, view, builder, ctx);
+            if matches!(action, ChildrenAction::Recurse) {
+                convert_children(node_id, view, builder, ctx);
+            }
             builder.close_node();
         }
 
@@ -808,40 +1093,39 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
             let data = view.get_type_data(node_id);
             let img_data = decode_image_data(data);
             let url_ref = encode_url(builder, view.get_str(img_data.url));
-            let id = if img_data.title.len > 0 {
-                add_void_element_with_specs(
-                    builder,
-                    "img",
-                    &[
-                        ("src", PROP_STRING, url_ref),
-                        ("alt", PROP_STRING, img_data.alt),
-                        ("title", PROP_STRING, img_data.title),
-                    ],
-                )
+            let specs: Vec<(&str, u8, StringRef)> = if img_data.title.len > 0 {
+                vec![
+                    ("src", PROP_STRING, url_ref),
+                    ("alt", PROP_STRING, img_data.alt),
+                    ("title", PROP_STRING, img_data.title),
+                ]
             } else {
-                add_void_element_with_specs(
-                    builder,
-                    "img",
-                    &[
-                        ("src", PROP_STRING, url_ref),
-                        ("alt", PROP_STRING, img_data.alt),
-                    ],
-                )
+                vec![
+                    ("src", PROP_STRING, url_ref),
+                    ("alt", PROP_STRING, img_data.alt),
+                ]
             };
+            let id = add_h_void_element(builder, view, node_id, "img", &specs);
             copy_position_to(id, node_id, view, builder);
         }
 
         Some(MdastNodeType::Delete) => {
-            open_element(builder, "del");
+            let action = open_h_element(builder, view, node_id, "del", &[]);
             copy_position(node_id, view, builder);
-            convert_children(node_id, view, builder, ctx);
+            if matches!(action, ChildrenAction::Recurse) {
+                convert_children(node_id, view, builder, ctx);
+            }
             builder.close_node();
         }
 
         Some(MdastNodeType::Table) => {
             let alignments = decode_table_alignments(view.get_type_data(node_id));
-            open_element(builder, "table");
+            let action = open_h_element(builder, view, node_id, "table", &[]);
             copy_position(node_id, view, builder);
+            if matches!(action, ChildrenAction::Replaced) {
+                builder.close_node();
+                return;
+            }
             let child_ids = view.get_children(node_id);
             if !child_ids.is_empty() {
                 add_text_node_with_ref(builder, ctx.newline_ref);
@@ -884,10 +1168,16 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
             let data = view.get_type_data(node_id);
             let math_data = decode_math_data(data);
             let value = view.get_str(math_data.value);
+            // hName/hProperties on math affect the outer <pre>; the inner
+            // <code> is left as-is. hChildren replaces all children.
+            let action = open_h_element(builder, view, node_id, "pre", &[]);
+            copy_position(node_id, view, builder);
+            if matches!(action, ChildrenAction::Replaced) {
+                builder.close_node();
+                return;
+            }
             let class_ref = builder.alloc_string("language-math math-display");
             let props = build_props(builder, &[("className", PROP_SPACE_SEP, class_ref)]);
-            open_element(builder, "pre");
-            copy_position(node_id, view, builder);
             open_element_with_props(builder, "code", &props);
             add_text_node(builder, value);
             builder.close_node(); // code
@@ -899,10 +1189,17 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
             let math_data = decode_math_data(data);
             let value = view.get_str(math_data.value);
             let class_ref = builder.alloc_string("language-math math-inline");
-            let props = build_props(builder, &[("className", PROP_SPACE_SEP, class_ref)]);
-            open_element_with_props(builder, "code", &props);
+            let action = open_h_element(
+                builder,
+                view,
+                node_id,
+                "code",
+                &[("className", PROP_SPACE_SEP, class_ref)],
+            );
             copy_position(node_id, view, builder);
-            add_text_node(builder, value);
+            if matches!(action, ChildrenAction::Recurse) {
+                add_text_node(builder, value);
+            }
             builder.close_node();
         }
 
@@ -917,22 +1214,19 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
                 let identifier = view.get_str(rd.identifier);
                 if let Some(def) = find_def(ctx.defs, view, identifier) {
                     let url_ref = encode_url(builder, view.get_str(def.url));
-                    if !def.title.is_empty() {
-                        let title_ref = def.title;
-                        let props = build_props(
-                            builder,
-                            &[
-                                ("href", PROP_STRING, url_ref),
-                                ("title", PROP_STRING, title_ref),
-                            ],
-                        );
-                        open_element_with_props(builder, "a", &props);
+                    let specs: Vec<(&str, u8, StringRef)> = if !def.title.is_empty() {
+                        vec![
+                            ("href", PROP_STRING, url_ref),
+                            ("title", PROP_STRING, def.title),
+                        ]
                     } else {
-                        let props = build_props(builder, &[("href", PROP_STRING, url_ref)]);
-                        open_element_with_props(builder, "a", &props);
-                    }
+                        vec![("href", PROP_STRING, url_ref)]
+                    };
+                    let action = open_h_element(builder, view, node_id, "a", &specs);
                     copy_position(node_id, view, builder);
-                    convert_children(node_id, view, builder, ctx);
+                    if matches!(action, ChildrenAction::Recurse) {
+                        convert_children(node_id, view, builder, ctx);
+                    }
                     builder.close_node();
                 } else {
                     // Unresolved: output children as-is
@@ -960,24 +1254,19 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
                     };
                     let url_ref = encode_url(builder, view.get_str(def.url));
                     let alt_ref = builder.alloc_string(&alt);
-                    let id = if !def.title.is_empty() {
-                        let title_ref = def.title;
-                        let props = build_props(
-                            builder,
-                            &[
-                                ("src", PROP_STRING, url_ref),
-                                ("alt", PROP_STRING, alt_ref),
-                                ("title", PROP_STRING, title_ref),
-                            ],
-                        );
-                        add_void_element_with_props(builder, "img", &props)
+                    let specs: Vec<(&str, u8, StringRef)> = if !def.title.is_empty() {
+                        vec![
+                            ("src", PROP_STRING, url_ref),
+                            ("alt", PROP_STRING, alt_ref),
+                            ("title", PROP_STRING, def.title),
+                        ]
                     } else {
-                        let props = build_props(
-                            builder,
-                            &[("src", PROP_STRING, url_ref), ("alt", PROP_STRING, alt_ref)],
-                        );
-                        add_void_element_with_props(builder, "img", &props)
+                        vec![
+                            ("src", PROP_STRING, url_ref),
+                            ("alt", PROP_STRING, alt_ref),
+                        ]
                     };
+                    let id = add_h_void_element(builder, view, node_id, "img", &specs);
                     copy_position_to(id, node_id, view, builder);
                 }
             }
@@ -1137,11 +1426,23 @@ fn convert_node(node_id: u32, view: &Arena, builder: &mut ArenaBuilder, ctx: &Co
         Some(MdastNodeType::ContainerDirective)
         | Some(MdastNodeType::LeafDirective)
         | Some(MdastNodeType::TextDirective) => {
-            // Directives have no HAST representation here. Users register a
-            // JS-level plugin (mdast or hast) to transform them; the Rust
-            // converter can't see those handlers, so the only safe default is
-            // to drop the node. Reference comparisons pass empty directive
-            // handlers to `mdast-util-to-hast` so both sides emit nothing.
+            // Directives have no built-in HAST representation; the only way
+            // to render one is to set `data.hName` (and optionally
+            // `data.hProperties` / `data.hChildren`) on the mdast node from a
+            // plugin. Without `hName`, drop the node — matching the empty
+            // `containerDirective` handler we install on the reference side.
+            let h = HData::read(view, node_id);
+            if let Some(name) = h.h_name() {
+                let props = merged_h_props(builder, &[], h.h_properties());
+                open_element_with_props(builder, name, &props);
+                copy_position(node_id, view, builder);
+                if let Some(children) = h.h_children() {
+                    emit_h_children(builder, children);
+                } else {
+                    convert_children(node_id, view, builder, ctx);
+                }
+                builder.close_node();
+            }
         }
 
         _ => {
@@ -1502,20 +1803,24 @@ fn emit_footnote_backrefs(
 
 fn produces_hast_output(child_id: u32, view: &Arena) -> bool {
     let raw_type = view.get_node(child_id).node_type;
-    !matches!(
-        MdastNodeType::from_u8(raw_type),
+    match MdastNodeType::from_u8(raw_type) {
         Some(
             MdastNodeType::Definition
-                | MdastNodeType::Yaml
-                | MdastNodeType::Toml
-                | MdastNodeType::ContainerDirective
-                | MdastNodeType::LeafDirective
-                | MdastNodeType::TextDirective
-                // FootnoteDefinition is emitted only at document end as part
-                // of the GFM `<section class="footnotes">` block.
-                | MdastNodeType::FootnoteDefinition
-        )
-    )
+            | MdastNodeType::Yaml
+            | MdastNodeType::Toml
+            // FootnoteDefinition is emitted only at document end as part
+            // of the GFM `<section class="footnotes">` block.
+            | MdastNodeType::FootnoteDefinition,
+        ) => false,
+        // Directives produce no output unless a plugin gave them an `hName`
+        // (the only way to opt into a HAST representation).
+        Some(
+            MdastNodeType::ContainerDirective
+            | MdastNodeType::LeafDirective
+            | MdastNodeType::TextDirective,
+        ) => HData::read(view, child_id).h_name().is_some(),
+        _ => true,
+    }
 }
 
 fn convert_children_wrapped(
@@ -1706,5 +2011,193 @@ mod hast_convert_tests {
                 source, types
             );
         }
+    }
+
+    /// Set `data` JSON on a node by id; mirrors what the JS setProperty path
+    /// does when a plugin writes `node.data`.
+    fn set_data(arena: &mut Arena, node_id: u32, json: &str) {
+        arena.set_node_data(node_id, json.as_bytes().to_vec());
+    }
+
+    use crate::hast::{hast_arena_to_html, HastNodeType};
+
+    fn parse_md(source: &str) -> Arena {
+        let (arena, _) =
+            satteri_pulldown_cmark::parse(source, satteri_pulldown_cmark::Options::ENABLE_GFM);
+        arena
+    }
+
+    fn find_first(arena: &Arena, node_type: MdastNodeType) -> u32 {
+        for id in 0..arena.len() as u32 {
+            if arena.get_node(id).node_type == node_type as u8 {
+                return id;
+            }
+        }
+        panic!("missing {node_type:?}");
+    }
+
+    fn first_element_tag(hast: &Arena) -> String {
+        for id in 0..hast.len() as u32 {
+            if hast.get_node(id).node_type == HastNodeType::Element as u8 {
+                let data = hast.get_type_data(id);
+                let tag = StringRef::from_bytes(&data[0..8]);
+                return hast.get_str(tag).to_string();
+            }
+        }
+        panic!("no element in hast")
+    }
+
+    #[test]
+    fn h_name_overrides_paragraph_tag() {
+        let mut mdast = parse_md("Hello world\n");
+        let para_id = find_first(&mdast, MdastNodeType::Paragraph);
+        set_data(&mut mdast, para_id, r#"{"hName":"section"}"#);
+        let hast = mdast_arena_to_hast_arena(&mdast);
+        assert_eq!(first_element_tag(&hast), "section");
+        let html = hast_arena_to_html(&hast);
+        assert!(html.contains("<section>Hello world</section>"));
+    }
+
+    #[test]
+    fn h_properties_merge_onto_paragraph() {
+        let mut mdast = parse_md("Hi\n");
+        let para_id = find_first(&mdast, MdastNodeType::Paragraph);
+        set_data(
+            &mut mdast,
+            para_id,
+            r#"{"hProperties":{"className":["note"],"id":"intro"}}"#,
+        );
+        let html = hast_arena_to_html(&mdast_arena_to_hast_arena(&mdast));
+        assert!(html.contains("class=\"note\""), "got {html}");
+        assert!(html.contains("id=\"intro\""), "got {html}");
+        assert!(html.contains("<p"), "tag stays <p>: {html}");
+    }
+
+    #[test]
+    fn h_properties_null_strips() {
+        let mut mdast = parse_md("- one\n- two\n");
+        let list_id = find_first(&mdast, MdastNodeType::List);
+        // Force className to null on a list with no task items so we can
+        // verify a null would clear it. Use an explicit className first then
+        // clear it via a second null entry that overrides.
+        set_data(
+            &mut mdast,
+            list_id,
+            r#"{"hProperties":{"className":["x","y"]}}"#,
+        );
+        let html_with = hast_arena_to_html(&mdast_arena_to_hast_arena(&mdast));
+        assert!(html_with.contains("class=\"x y\""));
+
+        set_data(
+            &mut mdast,
+            list_id,
+            r#"{"hProperties":{"className":null}}"#,
+        );
+        let html_without = hast_arena_to_html(&mdast_arena_to_hast_arena(&mdast));
+        assert!(!html_without.contains("class="), "got {html_without}");
+    }
+
+    #[test]
+    fn h_children_replaces_children() {
+        let mut mdast = parse_md("Hello\n");
+        let para_id = find_first(&mdast, MdastNodeType::Paragraph);
+        set_data(
+            &mut mdast,
+            para_id,
+            r#"{"hChildren":[{"type":"text","value":"replaced"}]}"#,
+        );
+        let html = hast_arena_to_html(&mdast_arena_to_hast_arena(&mdast));
+        assert!(html.contains("<p>replaced</p>"), "got {html}");
+        assert!(!html.contains("Hello"), "original child kept: {html}");
+    }
+
+    #[test]
+    fn h_name_with_h_children_emits_custom_tree() {
+        let mut mdast = parse_md("Hello\n");
+        let para_id = find_first(&mdast, MdastNodeType::Paragraph);
+        set_data(
+            &mut mdast,
+            para_id,
+            r#"{"hName":"aside","hProperties":{"className":["note"]},"hChildren":[{"type":"element","tagName":"strong","properties":{},"children":[{"type":"text","value":"Hi"}]}]}"#,
+        );
+        let html = hast_arena_to_html(&mdast_arena_to_hast_arena(&mdast));
+        assert!(
+            html.contains("<aside class=\"note\"><strong>Hi</strong></aside>"),
+            "got {html}"
+        );
+    }
+
+    #[test]
+    fn directive_without_h_name_drops() {
+        let (mdast, _) = satteri_pulldown_cmark::parse(
+            ":::note\nHello\n:::\n",
+            satteri_pulldown_cmark::Options::ENABLE_GFM
+                | satteri_pulldown_cmark::Options::ENABLE_DIRECTIVE,
+        );
+        let html = hast_arena_to_html(&mdast_arena_to_hast_arena(&mdast));
+        // No <note>, no <p>Hello</p> — the whole subtree dropped.
+        assert!(!html.contains("Hello"), "got {html}");
+    }
+
+    #[test]
+    fn directive_with_h_name_renders() {
+        let (mut mdast, _) = satteri_pulldown_cmark::parse(
+            ":::note\nHello\n:::\n",
+            satteri_pulldown_cmark::Options::ENABLE_GFM
+                | satteri_pulldown_cmark::Options::ENABLE_DIRECTIVE,
+        );
+        let dir_id = find_first(&mdast, MdastNodeType::ContainerDirective);
+        set_data(
+            &mut mdast,
+            dir_id,
+            r#"{"hName":"aside","hProperties":{"className":["note"]}}"#,
+        );
+        let html = hast_arena_to_html(&mdast_arena_to_hast_arena(&mdast));
+        assert!(html.contains("<aside class=\"note\">"), "got {html}");
+        assert!(html.contains("Hello"), "got {html}");
+        assert!(html.contains("</aside>"), "got {html}");
+    }
+
+    #[test]
+    fn h_name_on_heading_keeps_children() {
+        let mut mdast = parse_md("# Title\n");
+        let heading_id = find_first(&mdast, MdastNodeType::Heading);
+        set_data(&mut mdast, heading_id, r#"{"hName":"div"}"#);
+        let html = hast_arena_to_html(&mdast_arena_to_hast_arena(&mdast));
+        assert!(html.contains("<div>Title</div>"), "got {html}");
+    }
+
+    #[test]
+    fn h_properties_override_default_class() {
+        let mut mdast = parse_md("- [ ] task\n");
+        let item_id = find_first(&mdast, MdastNodeType::ListItem);
+        // The default class for a task-list item is "task-list-item"; an
+        // override should win.
+        set_data(
+            &mut mdast,
+            item_id,
+            r#"{"hProperties":{"className":["custom"]}}"#,
+        );
+        let html = hast_arena_to_html(&mdast_arena_to_hast_arena(&mdast));
+        assert!(html.contains("class=\"custom\""), "got {html}");
+        assert!(!html.contains("task-list-item"), "got {html}");
+    }
+
+    #[test]
+    fn invalid_data_json_is_ignored() {
+        let mut mdast = parse_md("Hi\n");
+        let para_id = find_first(&mdast, MdastNodeType::Paragraph);
+        set_data(&mut mdast, para_id, "not json");
+        let html = hast_arena_to_html(&mdast_arena_to_hast_arena(&mdast));
+        assert!(html.contains("<p>Hi</p>"), "got {html}");
+    }
+
+    #[test]
+    fn data_without_h_fields_is_ignored() {
+        let mut mdast = parse_md("Hi\n");
+        let para_id = find_first(&mdast, MdastNodeType::Paragraph);
+        set_data(&mut mdast, para_id, r#"{"someOther":"value"}"#);
+        let html = hast_arena_to_html(&mdast_arena_to_hast_arena(&mdast));
+        assert!(html.contains("<p>Hi</p>"), "got {html}");
     }
 }

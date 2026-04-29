@@ -66,6 +66,16 @@ pub enum CommandError {
     InvalidJson(String),
     UnknownNodeType(String),
     UnknownField(u16),
+    /// `wrapNode` was issued against a node that is also removed in the same
+    /// command buffer. There's no defined way to "wrap then remove" or
+    /// "remove then wrap" the same anchor.
+    WrapOnRemovedNode(u32),
+    /// `prependChild` or `appendChild` was issued against a node that is
+    /// also removed. The removed node has no inside to receive children.
+    ChildPatchOnRemovedNode(u32),
+    /// A patch's anchor lives inside a subtree whose root was removed, so
+    /// the patch can never apply.
+    PatchOnRemovedSubtree(u32),
 }
 
 impl std::fmt::Display for CommandError {
@@ -78,6 +88,17 @@ impl std::fmt::Display for CommandError {
             Self::InvalidJson(e) => write!(f, "invalid JSON in command payload: {e}"),
             Self::UnknownNodeType(t) => write!(f, "unknown node type in JSON: {t}"),
             Self::UnknownField(f_id) => write!(f, "unknown field ID: 0x{f_id:04x}"),
+            Self::WrapOnRemovedNode(id) => {
+                write!(f, "wrapNode targets node {id} which is also removed")
+            }
+            Self::ChildPatchOnRemovedNode(id) => write!(
+                f,
+                "prependChild/appendChild targets node {id} which is also removed"
+            ),
+            Self::PatchOnRemovedSubtree(id) => write!(
+                f,
+                "patch targets node {id} inside a removed subtree"
+            ),
         }
     }
 }

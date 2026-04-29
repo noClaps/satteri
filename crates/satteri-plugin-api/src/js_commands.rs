@@ -160,13 +160,12 @@ fn apply_set_property(
     value_type: u8,
     value_str: &str,
 ) -> Result<(), CommandError> {
-    // Try HAST path first
-    if let Some(result) = apply_hast_set_property(arena, node_id, prop_name, value_type, value_str)
-    {
-        return result;
-    }
-
-    // "data" is stored as JSON bytes in the arena's node_data map, not as a typed field.
+    // "data" is stored as JSON bytes in the arena's node_data map, not as a
+    // typed field — handle it before the HAST path. Numeric node-type values
+    // overlap between MDAST and HAST (e.g. mdast Paragraph=1 collides with
+    // HastNodeType::Element=1), so dispatching by type alone misroutes
+    // mdast nodes into the HAST element-properties writer and fails on the
+    // empty type_data buffer.
     if prop_name == "data" {
         if value_type == PROP_NULL {
             arena.set_node_data(node_id, Vec::new());
@@ -174,6 +173,11 @@ fn apply_set_property(
             arena.set_node_data(node_id, value_str.as_bytes().to_vec());
         }
         return Ok(());
+    }
+
+    if let Some(result) = apply_hast_set_property(arena, node_id, prop_name, value_type, value_str)
+    {
+        return result;
     }
 
     // MDAST node, resolve name to field and apply
@@ -912,7 +916,7 @@ pub fn apply_commands(
     if patches.is_empty() {
         Ok(arena)
     } else {
-        Ok(satteri_ast::rebuild::rebuild(&arena, &patches))
+        satteri_ast::rebuild::rebuild(&arena, &patches)
     }
 }
 

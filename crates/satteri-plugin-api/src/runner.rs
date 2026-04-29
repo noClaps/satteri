@@ -1,5 +1,5 @@
 use crate::commands::{BuiltNode, Command, NewNode};
-use crate::context::{Diagnostic, PluginContext};
+use crate::context::{Diagnostic, PluginContext, Severity};
 use crate::data::{DataMap, TypedDataMap};
 use crate::plugin::{NodeView, Plugin, VisitResult};
 use crate::typed_nodes::*;
@@ -86,7 +86,18 @@ impl PluginRunner {
                 // Convert commands to patches and rebuild the arena
                 let patches = commands_to_patches(commands.iter().collect(), &current_arena);
                 if !patches.is_empty() {
-                    current_arena = rebuild(&current_arena, &patches);
+                    match rebuild(&current_arena, &patches) {
+                        Ok(rebuilt) => current_arena = rebuilt,
+                        Err(err) => {
+                            // Drop the rebuild for this plugin's pass and surface
+                            // the bad combination so the plugin author can fix it.
+                            all_diagnostics.push(Diagnostic {
+                                message: format!("invalid patch combination: {err}"),
+                                node_id: None,
+                                severity: Severity::Error,
+                            });
+                        }
+                    }
                 }
                 all_commands.extend(commands);
             }

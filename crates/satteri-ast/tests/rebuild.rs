@@ -4,7 +4,11 @@
 
 use satteri_arena::{Arena, ArenaBuilder};
 use satteri_ast::mdast::MdastNodeType;
-use satteri_ast::rebuild::{rebuild, Patch};
+use satteri_ast::rebuild::{rebuild as rebuild_raw, Patch};
+
+fn rebuild(arena: &Arena, patches: &[Patch]) -> Arena {
+    rebuild_raw(arena, patches).expect("rebuild failed")
+}
 
 /// Tree structure:
 ///   Root (0)

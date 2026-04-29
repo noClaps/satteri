@@ -2,6 +2,7 @@
 
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::commands::CommandError;
 use satteri_arena::{Arena, ArenaBuilder};
 
 #[derive(Debug, Clone)]
@@ -43,8 +44,21 @@ pub enum Patch {
 /// Node IDs in the new arena are assigned fresh (monotonically increasing)
 /// but the structure is preserved. Sub-arena type_data bytes are copied
 /// verbatim; full StringRef remapping is deferred to Phase 8.
-pub fn rebuild(arena: &Arena, patches: &[Patch]) -> Arena {
-    let mut patch_map: FxHashMap<u32, &Patch> = FxHashMap::default();
+///
+/// Multiple patches anchored on the same `node_id` are preserved in buffer
+/// order — e.g. several `InsertBefore` calls on the same anchor each emit
+/// their sub-tree, in the order they were issued. `Remove` (or `Replace`)
+/// composes with sibling inserts on the same anchor: pre-inserts emit, the
+/// node is replaced or skipped, then post-inserts emit.
+///
+/// Returns an error if a patch combination would silently drop work:
+///   - `Wrap` / `PrependChild` / `AppendChild` on an anchor that is also
+///     removed or replaced — there's no inside left for the child, and no
+///     original to wrap.
+///   - Any patch on an anchor whose subtree was discarded by an ancestor's
+///     `Remove` (or by a `Replace { keep_children: false }`).
+pub fn rebuild(arena: &Arena, patches: &[Patch]) -> Result<Arena, CommandError> {
+    let mut patch_map: FxHashMap<u32, Vec<&Patch>> = FxHashMap::default();
     for patch in patches {
         let node_id = match patch {
             Patch::Replace { node_id, .. } => *node_id,
@@ -55,7 +69,7 @@ pub fn rebuild(arena: &Arena, patches: &[Patch]) -> Arena {
             Patch::PrependChild { node_id, .. } => *node_id,
             Patch::AppendChild { node_id, .. } => *node_id,
         };
-        patch_map.insert(node_id, patch);
+        patch_map.entry(node_id).or_default().push(patch);
     }
 
     // Replaced or removed nodes are skipped during normal traversal
@@ -72,57 +86,117 @@ pub fn rebuild(arena: &Arena, patches: &[Patch]) -> Arena {
         }
     }
 
+    // Pre-flight: Wrap / PrependChild / AppendChild against a deleted anchor
+    // can't be honored — the node won't exist to wrap, and the deleted node
+    // has no inside to receive children. Sibling inserts (Before/After) are
+    // fine: they emit around the absence.
+    for patch in patches {
+        match patch {
+            Patch::Wrap { node_id, .. } if deleted.contains(node_id) => {
+                return Err(CommandError::WrapOnRemovedNode(*node_id));
+            }
+            Patch::PrependChild { node_id, .. } | Patch::AppendChild { node_id, .. }
+                if deleted.contains(node_id) =>
+            {
+                return Err(CommandError::ChildPatchOnRemovedNode(*node_id));
+            }
+            _ => {}
+        }
+    }
+
     let new_source = arena.source().to_string();
     let mut builder = ArenaBuilder::new(new_source);
 
-    copy_node(0, arena, &mut builder, &patch_map, &deleted);
+    let mut visited: FxHashSet<u32> = FxHashSet::default();
+    copy_node(0, arena, &mut builder, &patch_map, &deleted, &mut visited);
 
-    builder.finish()
+    // Any anchor in patch_map that wasn't reached during the walk lives
+    // inside a removed subtree (or a Replace { keep_children: false }
+    // subtree), so its patch was silently dropped. Surface that.
+    for &anchor in patch_map.keys() {
+        if !visited.contains(&anchor) {
+            return Err(CommandError::PatchOnRemovedSubtree(anchor));
+        }
+    }
+
+    Ok(builder.finish())
 }
 
 /// Returns `true` if the node was emitted (or a replacement was emitted),
-/// `false` if skipped (Remove).
+/// `false` if skipped entirely (Remove with no sibling inserts).
+///
+/// `visited` accumulates every reached anchor (deleted or not) so that the
+/// caller can detect anchors stranded inside discarded subtrees.
 fn copy_node(
     node_id: u32,
     orig: &Arena,
     builder: &mut ArenaBuilder,
-    patch_map: &FxHashMap<u32, &Patch>,
+    patch_map: &FxHashMap<u32, Vec<&Patch>>,
     deleted: &FxHashSet<u32>,
+    visited: &mut FxHashSet<u32>,
 ) -> bool {
-    // For Replace patches, the replacement is emitted here (not by the parent)
-    // when this is the root node or when copy_children delegates to copy_node.
+    let node_patches: &[&Patch] = patch_map
+        .get(&node_id)
+        .map(Vec::as_slice)
+        .unwrap_or(&[]);
+    if !node_patches.is_empty() {
+        visited.insert(node_id);
+    }
+
+    // Pre-siblings emit before either the original node, its replacement, or
+    // its absence — whichever applies.
+    for patch in node_patches {
+        if let Patch::InsertBefore { new_tree, .. } = patch {
+            emit_subtree(new_tree, builder);
+        }
+    }
+
     if deleted.contains(&node_id) {
-        if let Some(Patch::Replace {
-            new_tree,
-            keep_children,
-            ..
-        }) = patch_map.get(&node_id)
-        {
-            if *keep_children {
+        // Multiple `Replace` patches on the same anchor are last-wins: each
+        // one expresses "the new shape of this node," so the latest supersedes
+        // earlier ones. The HAST `setProperty` flow for MDX JSX elements
+        // relies on this — each prop set produces a fresh `replaceNode` call
+        // carrying the accumulated attributes, and we want the final one.
+        let replacement = node_patches.iter().rev().find_map(|p| match p {
+            Patch::Replace {
+                new_tree,
+                keep_children,
+                ..
+            } => Some((new_tree, *keep_children)),
+            _ => None,
+        });
+        if let Some((new_tree, keep_children)) = replacement {
+            if keep_children {
                 emit_subtree_with_original_children(
-                    new_tree, node_id, orig, builder, patch_map, deleted,
+                    new_tree, node_id, orig, builder, patch_map, deleted, visited,
                 );
             } else {
                 emit_subtree(new_tree, builder);
             }
-            return true;
         }
-        return false;
-    }
-
-    if let Some(Patch::InsertBefore { new_tree, .. }) = patch_map.get(&node_id) {
-        emit_subtree(new_tree, builder);
+        // Post-siblings still apply for Remove and Replace.
+        for patch in node_patches {
+            if let Patch::InsertAfter { new_tree, .. } = patch {
+                emit_subtree(new_tree, builder);
+            }
+        }
+        return true;
     }
 
     // Wrap: parent_tree's root becomes the wrapper; the original node becomes
     // its only child. Any existing children in parent_tree are ignored (Phase 6
-    // simplification).
-    if let Some(Patch::Wrap { parent_tree, .. }) = patch_map.get(&node_id) {
-        emit_wrap_node(parent_tree, node_id, orig, builder, patch_map, deleted);
-
-        // InsertAfter (after the wrapped group)
-        if let Some(Patch::InsertAfter { new_tree, .. }) = patch_map.get(&node_id) {
-            emit_subtree(new_tree, builder);
+    // simplification). Multiple wraps on the same anchor are last-wins for
+    // the same reason as Replace.
+    let wrap_tree = node_patches.iter().rev().find_map(|p| match p {
+        Patch::Wrap { parent_tree, .. } => Some(parent_tree),
+        _ => None,
+    });
+    if let Some(parent_tree) = wrap_tree {
+        emit_wrap_node(parent_tree, node_id, orig, builder, patch_map, deleted, visited);
+        for patch in node_patches {
+            if let Patch::InsertAfter { new_tree, .. } = patch {
+                emit_subtree(new_tree, builder);
+            }
         }
         return true;
     }
@@ -150,40 +224,29 @@ fn copy_node(
         builder.set_data_current(type_data);
     }
 
-    if let Some(Patch::PrependChild { child_tree, .. }) = patch_map.get(&node_id) {
-        emit_subtree(child_tree, builder);
+    for patch in node_patches {
+        if let Patch::PrependChild { child_tree, .. } = patch {
+            emit_subtree(child_tree, builder);
+        }
     }
 
     let child_ids: Vec<u32> = orig.get_children(node_id).to_vec();
     for child_id in child_ids {
-        if deleted.contains(&child_id) {
-            if let Some(Patch::Replace {
-                new_tree,
-                keep_children,
-                ..
-            }) = patch_map.get(&child_id)
-            {
-                if *keep_children {
-                    emit_subtree_with_original_children(
-                        new_tree, child_id, orig, builder, patch_map, deleted,
-                    );
-                } else {
-                    emit_subtree(new_tree, builder);
-                }
-            }
-        } else {
-            copy_node(child_id, orig, builder, patch_map, deleted);
-        }
+        copy_node(child_id, orig, builder, patch_map, deleted, visited);
     }
 
-    if let Some(Patch::AppendChild { child_tree, .. }) = patch_map.get(&node_id) {
-        emit_subtree(child_tree, builder);
+    for patch in node_patches {
+        if let Patch::AppendChild { child_tree, .. } = patch {
+            emit_subtree(child_tree, builder);
+        }
     }
 
     builder.close_node();
 
-    if let Some(Patch::InsertAfter { new_tree, .. }) = patch_map.get(&node_id) {
-        emit_subtree(new_tree, builder);
+    for patch in node_patches {
+        if let Patch::InsertAfter { new_tree, .. } = patch {
+            emit_subtree(new_tree, builder);
+        }
     }
 
     true
@@ -251,8 +314,9 @@ fn emit_subtree_with_original_children(
     orig_node_id: u32,
     orig: &Arena,
     builder: &mut ArenaBuilder,
-    patch_map: &FxHashMap<u32, &Patch>,
+    patch_map: &FxHashMap<u32, Vec<&Patch>>,
     deleted: &FxHashSet<u32>,
+    visited: &mut FxHashSet<u32>,
 ) {
     if sub_arena.is_empty() {
         return;
@@ -284,7 +348,7 @@ fn emit_subtree_with_original_children(
     // Copy children from the original node
     let child_ids: Vec<u32> = orig.get_children(orig_node_id).to_vec();
     for child_id in child_ids {
-        copy_node(child_id, orig, builder, patch_map, deleted);
+        copy_node(child_id, orig, builder, patch_map, deleted, visited);
     }
 
     builder.close_node();
@@ -379,12 +443,13 @@ fn emit_wrap_node(
     original_node_id: u32,
     orig: &Arena,
     builder: &mut ArenaBuilder,
-    patch_map: &FxHashMap<u32, &Patch>,
+    patch_map: &FxHashMap<u32, Vec<&Patch>>,
     deleted: &FxHashSet<u32>,
+    visited: &mut FxHashSet<u32>,
 ) {
     if parent_tree.is_empty() {
         // Degenerate: no wrapper, just emit original
-        copy_node(original_node_id, orig, builder, patch_map, deleted);
+        copy_node(original_node_id, orig, builder, patch_map, deleted, visited);
         return;
     }
 
@@ -421,7 +486,7 @@ fn emit_wrap_node(
 
     // Emit the original node as the child, copy it directly without
     // consulting the patch map (to avoid infinite recursion back into Wrap).
-    copy_node_raw(original_node_id, orig, builder, patch_map, deleted);
+    copy_node_raw(original_node_id, orig, builder, patch_map, deleted, visited);
 
     builder.close_node();
 }
@@ -433,8 +498,9 @@ fn copy_node_raw(
     node_id: u32,
     orig: &Arena,
     builder: &mut ArenaBuilder,
-    patch_map: &FxHashMap<u32, &Patch>,
+    patch_map: &FxHashMap<u32, Vec<&Patch>>,
     deleted: &FxHashSet<u32>,
+    visited: &mut FxHashSet<u32>,
 ) {
     let node = orig.get_node(node_id);
     let new_id = builder.open_node_raw(node.node_type);
@@ -460,7 +526,7 @@ fn copy_node_raw(
     // Children are copied normally (patches on children still apply)
     let child_ids: Vec<u32> = orig.get_children(node_id).to_vec();
     for child_id in child_ids {
-        copy_node(child_id, orig, builder, patch_map, deleted);
+        copy_node(child_id, orig, builder, patch_map, deleted, visited);
     }
 
     builder.close_node();
@@ -511,7 +577,7 @@ mod tests {
     #[test]
     fn empty_patches_preserves_structure() {
         let orig = build_hello_world();
-        let rebuilt = rebuild(&orig, &[]);
+        let rebuilt = rebuild(&orig, &[]).expect("rebuild failed");
         assert_eq!(rebuilt.len(), orig.len(), "node count must be the same");
         // Root still has 2 children
         assert_eq!(rebuilt.get_children(0).len(), 2);
@@ -529,7 +595,7 @@ mod tests {
         let patches = vec![Patch::Remove {
             node_id: text_in_heading,
         }];
-        let rebuilt = rebuild(&orig, &patches);
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
 
         // We should have 4 nodes: Root, Heading (now empty), Paragraph, Text(World)
         assert_eq!(rebuilt.len(), 4, "text under heading should be removed");
@@ -557,7 +623,7 @@ mod tests {
         let patches = vec![Patch::Remove {
             node_id: heading_id,
         }];
-        let rebuilt = rebuild(&orig, &patches);
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
 
         // Root + Paragraph + Text(World) = 3 nodes
         assert_eq!(rebuilt.len(), 3);
@@ -586,7 +652,7 @@ mod tests {
             new_tree: replacement,
             keep_children: false,
         }];
-        let rebuilt = rebuild(&orig, &patches);
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
 
         // Same node count (Text replaced by ThematicBreak, 1-for-1)
         assert_eq!(rebuilt.len(), orig.len());
@@ -615,7 +681,7 @@ mod tests {
             new_tree: replacement,
             keep_children: false,
         }];
-        let rebuilt = rebuild(&orig, &patches);
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
 
         // Root should still have 2 children; first one is now Paragraph
         let root_children = rebuilt.get_children(0);
@@ -646,7 +712,7 @@ mod tests {
             node_id: para_id,
             new_tree,
         }];
-        let rebuilt = rebuild(&orig, &patches);
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
 
         // Root should now have 3 children: Heading, ThematicBreak, Paragraph
         let root_children = rebuilt.get_children(0);
@@ -679,7 +745,7 @@ mod tests {
             node_id: heading_id,
             new_tree,
         }];
-        let rebuilt = rebuild(&orig, &patches);
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
 
         // Root should now have 3 children: Heading, ThematicBreak, Paragraph
         let root_children = rebuilt.get_children(0);
@@ -712,7 +778,7 @@ mod tests {
             node_id: heading_id,
             child_tree,
         }];
-        let rebuilt = rebuild(&orig, &patches);
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
 
         // Heading should now have 2 children: original Text + new Break
         let new_heading_id = rebuilt.get_children(0)[0];
@@ -742,7 +808,7 @@ mod tests {
             node_id: heading_id,
             child_tree,
         }];
-        let rebuilt = rebuild(&orig, &patches);
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
 
         // Heading should now have 2 children: new Break + original Text
         let new_heading_id = rebuilt.get_children(0)[0];
@@ -779,7 +845,7 @@ mod tests {
                 new_tree,
             },
         ];
-        let rebuilt = rebuild(&orig, &patches);
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
 
         // Root should have 2 children: original Paragraph + new ThematicBreak
         let root_children = rebuilt.get_children(0);
@@ -836,7 +902,7 @@ mod tests {
             node_id: 1,
             parent_tree: wrapper,
         }];
-        let rebuilt = rebuild(&orig, &patches);
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
 
         // Should be: root -> div -> h1 -> text
         assert_eq!(rebuilt.len(), 4);
@@ -853,6 +919,403 @@ mod tests {
         assert_eq!(
             rebuilt.get_node(h1_id).node_type,
             HastNodeType::Element as u8
+        );
+    }
+
+    /// Build a single-node arena rooted at `node_type`, with no data and no
+    /// children. Used to construct distinct sibling sub-trees for multi-patch
+    /// tests.
+    fn single_node_arena(node_type: MdastNodeType) -> Arena {
+        let mut b = ArenaBuilder::new(String::new());
+        b.open_node(node_type as u8);
+        b.close_node();
+        b.finish()
+    }
+
+    /// Multiple `InsertBefore` patches against the same anchor must all be
+    /// emitted, in the order they were issued (issuance order = buffer order).
+    /// Regression: previously the patch map was keyed by node_id with a single
+    /// `&Patch` value, so all but the last collided and were silently lost.
+    #[test]
+    fn multiple_insert_before_same_anchor_preserves_order() {
+        let orig = build_hello_world();
+        let para_id = orig.get_children(0)[1];
+
+        let patches = vec![
+            Patch::InsertBefore {
+                node_id: para_id,
+                new_tree: single_node_arena(MdastNodeType::ThematicBreak),
+            },
+            Patch::InsertBefore {
+                node_id: para_id,
+                new_tree: single_node_arena(MdastNodeType::Break),
+            },
+            Patch::InsertBefore {
+                node_id: para_id,
+                new_tree: single_node_arena(MdastNodeType::Blockquote),
+            },
+        ];
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
+
+        // Root: Heading, ThematicBreak, Break, Blockquote, Paragraph
+        let root_children = rebuilt.get_children(0);
+        assert_eq!(root_children.len(), 5);
+        let types: Vec<u8> = root_children
+            .iter()
+            .map(|&id| rebuilt.get_node(id).node_type)
+            .collect();
+        assert_eq!(
+            types,
+            vec![
+                MdastNodeType::Heading as u8,
+                MdastNodeType::ThematicBreak as u8,
+                MdastNodeType::Break as u8,
+                MdastNodeType::Blockquote as u8,
+                MdastNodeType::Paragraph as u8,
+            ]
+        );
+    }
+
+    /// Multiple `InsertAfter` patches against the same anchor: same contract,
+    /// preserve buffer order.
+    #[test]
+    fn multiple_insert_after_same_anchor_preserves_order() {
+        let orig = build_hello_world();
+        let heading_id = orig.get_children(0)[0];
+
+        let patches = vec![
+            Patch::InsertAfter {
+                node_id: heading_id,
+                new_tree: single_node_arena(MdastNodeType::ThematicBreak),
+            },
+            Patch::InsertAfter {
+                node_id: heading_id,
+                new_tree: single_node_arena(MdastNodeType::Break),
+            },
+        ];
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
+
+        let root_children = rebuilt.get_children(0);
+        assert_eq!(root_children.len(), 4);
+        let types: Vec<u8> = root_children
+            .iter()
+            .map(|&id| rebuilt.get_node(id).node_type)
+            .collect();
+        assert_eq!(
+            types,
+            vec![
+                MdastNodeType::Heading as u8,
+                MdastNodeType::ThematicBreak as u8,
+                MdastNodeType::Break as u8,
+                MdastNodeType::Paragraph as u8,
+            ]
+        );
+    }
+
+    /// The asides-plugin flow: `insertBefore(anchor, opening)` × N for body
+    /// children, `insertAfter(anchor, closing)`, then `removeNode(anchor)`.
+    /// All sibling inserts must survive the remove on the same anchor.
+    #[test]
+    fn insert_before_after_and_remove_same_anchor() {
+        let orig = build_hello_world();
+        let para_id = orig.get_children(0)[1];
+
+        let patches = vec![
+            Patch::InsertBefore {
+                node_id: para_id,
+                new_tree: single_node_arena(MdastNodeType::ThematicBreak),
+            },
+            Patch::InsertBefore {
+                node_id: para_id,
+                new_tree: single_node_arena(MdastNodeType::Break),
+            },
+            Patch::InsertAfter {
+                node_id: para_id,
+                new_tree: single_node_arena(MdastNodeType::Blockquote),
+            },
+            Patch::Remove { node_id: para_id },
+        ];
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
+
+        // Root should be: Heading, ThematicBreak, Break, Blockquote
+        // (Paragraph removed, but the inserts around it stay.)
+        let root_children = rebuilt.get_children(0);
+        assert_eq!(root_children.len(), 4);
+        let types: Vec<u8> = root_children
+            .iter()
+            .map(|&id| rebuilt.get_node(id).node_type)
+            .collect();
+        assert_eq!(
+            types,
+            vec![
+                MdastNodeType::Heading as u8,
+                MdastNodeType::ThematicBreak as u8,
+                MdastNodeType::Break as u8,
+                MdastNodeType::Blockquote as u8,
+            ]
+        );
+    }
+
+    /// `Replace` composes with sibling inserts on the same anchor: pre-insert
+    /// emits, then the replacement emits in place of the original, then
+    /// post-insert emits.
+    #[test]
+    fn replace_with_insert_before_and_after_same_anchor() {
+        let orig = build_hello_world();
+        let heading_id = orig.get_children(0)[0];
+
+        let mut replacement = ArenaBuilder::new(orig.source().to_string());
+        replacement.open_node(MdastNodeType::Paragraph as u8);
+        replacement.close_node();
+        let replacement = replacement.finish();
+
+        let patches = vec![
+            Patch::InsertBefore {
+                node_id: heading_id,
+                new_tree: single_node_arena(MdastNodeType::ThematicBreak),
+            },
+            Patch::Replace {
+                node_id: heading_id,
+                new_tree: replacement,
+                keep_children: false,
+            },
+            Patch::InsertAfter {
+                node_id: heading_id,
+                new_tree: single_node_arena(MdastNodeType::Break),
+            },
+        ];
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
+
+        // Root: ThematicBreak, Paragraph (was Heading), Break, Paragraph (orig)
+        let root_children = rebuilt.get_children(0);
+        assert_eq!(root_children.len(), 4);
+        let types: Vec<u8> = root_children
+            .iter()
+            .map(|&id| rebuilt.get_node(id).node_type)
+            .collect();
+        assert_eq!(
+            types,
+            vec![
+                MdastNodeType::ThematicBreak as u8,
+                MdastNodeType::Paragraph as u8,
+                MdastNodeType::Break as u8,
+                MdastNodeType::Paragraph as u8,
+            ]
+        );
+    }
+
+    /// Multiple `Replace` patches on the same anchor: last-wins. The HAST
+    /// `setProperty` path for MDX JSX elements emits a fresh `replaceNode`
+    /// for every prop set, each carrying the accumulated attribute list — so
+    /// the final replacement is the one with the full state.
+    #[test]
+    fn multiple_replace_same_anchor_last_wins() {
+        let orig = build_hello_world();
+        let heading_id = orig.get_children(0)[0];
+
+        let mut first = ArenaBuilder::new(orig.source().to_string());
+        first.open_node(MdastNodeType::ThematicBreak as u8);
+        first.close_node();
+        let first = first.finish();
+
+        let mut second = ArenaBuilder::new(orig.source().to_string());
+        second.open_node(MdastNodeType::Break as u8);
+        second.close_node();
+        let second = second.finish();
+
+        let patches = vec![
+            Patch::Replace {
+                node_id: heading_id,
+                new_tree: first,
+                keep_children: false,
+            },
+            Patch::Replace {
+                node_id: heading_id,
+                new_tree: second,
+                keep_children: false,
+            },
+        ];
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
+
+        let root_children = rebuilt.get_children(0);
+        assert_eq!(root_children.len(), 2);
+        assert_eq!(
+            rebuilt.get_node(root_children[0]).node_type,
+            MdastNodeType::Break as u8,
+            "the second Replace should win"
+        );
+    }
+
+    /// Multiple `PrependChild` and `AppendChild` patches on the same anchor
+    /// also accumulate in buffer order, not collide.
+    #[test]
+    fn multiple_prepend_and_append_child_same_anchor() {
+        let orig = build_hello_world();
+        let heading_id = orig.get_children(0)[0];
+
+        let patches = vec![
+            Patch::PrependChild {
+                node_id: heading_id,
+                child_tree: single_node_arena(MdastNodeType::ThematicBreak),
+            },
+            Patch::PrependChild {
+                node_id: heading_id,
+                child_tree: single_node_arena(MdastNodeType::Break),
+            },
+            Patch::AppendChild {
+                node_id: heading_id,
+                child_tree: single_node_arena(MdastNodeType::Blockquote),
+            },
+            Patch::AppendChild {
+                node_id: heading_id,
+                child_tree: single_node_arena(MdastNodeType::Paragraph),
+            },
+        ];
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild failed");
+
+        // Heading children: ThematicBreak, Break, original Text, Blockquote, Paragraph
+        let new_heading_id = rebuilt.get_children(0)[0];
+        let heading_children = rebuilt.get_children(new_heading_id);
+        let types: Vec<u8> = heading_children
+            .iter()
+            .map(|&id| rebuilt.get_node(id).node_type)
+            .collect();
+        assert_eq!(
+            types,
+            vec![
+                MdastNodeType::ThematicBreak as u8,
+                MdastNodeType::Break as u8,
+                MdastNodeType::Text as u8,
+                MdastNodeType::Blockquote as u8,
+                MdastNodeType::Paragraph as u8,
+            ]
+        );
+    }
+
+    /// `wrapNode(N) + removeNode(N)` has no defined meaning — the node won't
+    /// exist to wrap. Surface as an error rather than silently dropping the
+    /// wrap.
+    #[test]
+    fn wrap_on_removed_node_errors() {
+        let orig = build_hello_world();
+        let heading_id = orig.get_children(0)[0];
+
+        let patches = vec![
+            Patch::Wrap {
+                node_id: heading_id,
+                parent_tree: single_node_arena(MdastNodeType::Blockquote),
+            },
+            Patch::Remove {
+                node_id: heading_id,
+            },
+        ];
+        match rebuild(&orig, &patches) {
+            Err(CommandError::WrapOnRemovedNode(id)) => assert_eq!(id, heading_id),
+            other => panic!("expected WrapOnRemovedNode, got {other:?}"),
+        }
+    }
+
+    /// `prependChild(N, …) + removeNode(N)` has no inside to receive the
+    /// child. Same for `appendChild`.
+    #[test]
+    fn prepend_child_on_removed_node_errors() {
+        let orig = build_hello_world();
+        let heading_id = orig.get_children(0)[0];
+
+        let patches = vec![
+            Patch::PrependChild {
+                node_id: heading_id,
+                child_tree: single_node_arena(MdastNodeType::Break),
+            },
+            Patch::Remove {
+                node_id: heading_id,
+            },
+        ];
+        match rebuild(&orig, &patches) {
+            Err(CommandError::ChildPatchOnRemovedNode(id)) => assert_eq!(id, heading_id),
+            other => panic!("expected ChildPatchOnRemovedNode, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn append_child_on_removed_node_errors() {
+        let orig = build_hello_world();
+        let heading_id = orig.get_children(0)[0];
+
+        let patches = vec![
+            Patch::Remove {
+                node_id: heading_id,
+            },
+            Patch::AppendChild {
+                node_id: heading_id,
+                child_tree: single_node_arena(MdastNodeType::Break),
+            },
+        ];
+        match rebuild(&orig, &patches) {
+            Err(CommandError::ChildPatchOnRemovedNode(id)) => assert_eq!(id, heading_id),
+            other => panic!("expected ChildPatchOnRemovedNode, got {other:?}"),
+        }
+    }
+
+    /// Patching a descendant of a removed subtree: the descendant's anchor
+    /// is never reached during the walk because we don't recurse into
+    /// removed nodes. Caught post-walk as `PatchOnRemovedSubtree`.
+    #[test]
+    fn patch_on_descendant_of_removed_node_errors() {
+        let orig = build_hello_world();
+        let heading_id = orig.get_children(0)[0]; // heading
+        let text_in_heading = orig.get_children(heading_id)[0]; // text inside heading
+
+        let patches = vec![
+            Patch::Remove {
+                node_id: heading_id,
+            },
+            Patch::InsertBefore {
+                node_id: text_in_heading,
+                new_tree: single_node_arena(MdastNodeType::Break),
+            },
+        ];
+        match rebuild(&orig, &patches) {
+            Err(CommandError::PatchOnRemovedSubtree(id)) => assert_eq!(id, text_in_heading),
+            other => panic!("expected PatchOnRemovedSubtree, got {other:?}"),
+        }
+    }
+
+    /// `Replace { keep_children: true }` keeps the original children, so
+    /// patches on those children should still apply (no error).
+    #[test]
+    fn patch_on_descendant_survives_replace_keep_children() {
+        let orig = build_hello_world();
+        let heading_id = orig.get_children(0)[0];
+        let text_in_heading = orig.get_children(heading_id)[0];
+
+        let mut replacement = ArenaBuilder::new(orig.source().to_string());
+        replacement.open_node(MdastNodeType::Paragraph as u8);
+        replacement.close_node();
+        let replacement = replacement.finish();
+
+        let patches = vec![
+            Patch::Replace {
+                node_id: heading_id,
+                new_tree: replacement,
+                keep_children: true,
+            },
+            Patch::InsertBefore {
+                node_id: text_in_heading,
+                new_tree: single_node_arena(MdastNodeType::Break),
+            },
+        ];
+        let rebuilt = rebuild(&orig, &patches).expect("rebuild should succeed");
+        // The new wrapper has Break + Text inside.
+        let new_wrapper = rebuilt.get_children(0)[0];
+        let inside = rebuilt.get_children(new_wrapper);
+        let types: Vec<u8> = inside
+            .iter()
+            .map(|&id| rebuilt.get_node(id).node_type)
+            .collect();
+        assert_eq!(
+            types,
+            vec![MdastNodeType::Break as u8, MdastNodeType::Text as u8]
         );
     }
 }

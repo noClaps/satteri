@@ -77,7 +77,7 @@ fn features_to_options(features: Option<JsFeatures>, mdx: bool) -> satteri_pulld
         opts |= Options::ENABLE_HEADING_ATTRIBUTES;
     }
     if f.directive.unwrap_or(false) {
-        opts |= Options::ENABLE_CONTAINER_EXTENSIONS;
+        opts |= Options::ENABLE_DIRECTIVE;
     }
     if f.superscript.unwrap_or(false) {
         opts |= Options::ENABLE_SUPERSCRIPT;

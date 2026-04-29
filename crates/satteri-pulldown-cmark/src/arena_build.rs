@@ -1614,13 +1614,13 @@ pub fn parse(source: &str, options: Options) -> (Arena, Vec<(usize, String)>) {
         // remark handles this cleanly because its autolink tokenizer runs
         // before the directive check; we're a post-pass, so we re-merge the
         // split first and then run the autolink scan.
-        if options.contains(Options::ENABLE_CONTAINER_EXTENSIONS) {
+        if options.contains(Options::ENABLE_DIRECTIVE) {
             merge_directive_port_splits(&mut arena);
         }
         gfm_autolink_literal_pass(&mut arena);
     }
 
-    if options.contains(Options::ENABLE_CONTAINER_EXTENSIONS) {
+    if options.contains(Options::ENABLE_DIRECTIVE) {
         // Directive labels are stored as a single Text node today. Remark
         // inline-parses them so constructs like `` `code` `` inside
         // `:::tip[Set a \`baseUrl\`]` end up as inlineCode. We mirror the

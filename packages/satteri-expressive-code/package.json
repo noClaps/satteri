@@ -42,7 +42,8 @@
     }
   },
   "scripts": {
-    "build": "tsc --project tsconfig.build.json",
+    "build": "pnpm build:ts",
+    "build:ts": "tsc --project tsconfig.build.json",
     "dev": "tsc --watch --project tsconfig.build.json",
     "test": "vitest run",
     "test-watch": "vitest"

@@ -169,9 +169,9 @@ export declare function parseToHtml(source: string, features?: JsFeatures | unde
 export declare function renderHandle(handle: HastHandle): string
 
 /**
- * Serialize a handle's arena to a binary buffer. Works for both MDAST
- * (read-only snapshot for the JS visitor) and HAST (fallback path for
- * `transformRoot`) — the kind tag is embedded in the buffer header.
+ * Serialize a handle's arena to the wire-format buffer JS instantiates a
+ * reader from. The kind tag in the header tells the JS side whether to
+ * pick `MdastReader` or `HastReader`.
  */
 export declare function serializeHandle(handle: AnyHandle): Uint8Array
 

@@ -38,8 +38,7 @@ type MdastPluginInput = MdastPluginDefinition | (() => MdastPluginDefinition);
 type HastPluginInput = HastPluginDefinition | (() => HastPluginDefinition);
 ```
 
-Factories are called once per `markdownToHtml` invocation, so closures
-reset between documents.
+Factories are called once per invocation, so closures reset between documents.
 
 ## MDAST visitors
 
@@ -164,12 +163,9 @@ that returns the value parsed as an ESTree `Program`, or `null` if the
 value is missing.
 
 ```js
-mdxFlowExpression: {
-  filter: [],
-  visit(node) {
-    const tree = node.parseExpression();
-    // tree is an ESTree Program
-  },
+mdxFlowExpression(node) {
+  const tree = node.parseExpression();
+  // tree is an ESTree Program
 },
 ```
 

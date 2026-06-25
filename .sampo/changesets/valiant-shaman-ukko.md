@@ -2,4 +2,4 @@
 cargo/satteri-ast: minor
 ---
 
-Render math using `math-core`
+Added support for rendering LaTeX math to MathML using `math-core`

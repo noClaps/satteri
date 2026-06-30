@@ -838,6 +838,22 @@ fn children_arrow_returning_jsx() -> Result<(), satteri_arena::mdx_types::Messag
 }
 
 #[test]
+fn jsx_in_expression_preserves_significant_whitespace()
+-> Result<(), satteri_arena::mdx_types::Message> {
+    // JSX keeps a no-newline whitespace run as a significant `" "`, even via the expression path.
+    let result = compile(
+        "<C d={<><x>a</x> <y>b</y><em> </em></>} />\n",
+        &Options::default(),
+        MDX_OPTS,
+    )?;
+    assert!(
+        result.matches("\" \"").count() >= 2,
+        "significant inter-element and spacer whitespace must be preserved: {result}"
+    );
+    Ok(())
+}
+
+#[test]
 fn jsx_inside_map_callback() -> Result<(), satteri_arena::mdx_types::Message> {
     // `items.map(x => <li>{x}</li>)` must produce _jsx calls in the callback,
     // not leave raw JSX in the compiled output.

@@ -2573,15 +2573,8 @@ fn jsx_text_to_value(value: &str) -> String {
     }
 
     if start != bytes.len() {
-        if result.is_empty() {
-            index = 0;
-            while index < bytes.len() && bytes[index] == b' ' {
-                index += 1;
-            }
-            if index == bytes.len() {
-                return result;
-            }
-        } else {
+        // An all-spaces run with no newline is significant in JSX, so keep it rather than drop it.
+        if !result.is_empty() {
             result.push(' ');
         }
         result.push_str(str::from_utf8(&bytes[start..]).unwrap());

@@ -1399,10 +1399,24 @@ fn convert_node(
             let value = view.get_str(math_data.value);
 
             let math_converter = LatexToMathML::default();
-            // TODO: handle error
-            let mathml = math_converter
-                .convert_with_local_counter(value, MathDisplay::Block)
-                .unwrap();
+            let Ok(mathml) = math_converter.convert_with_local_counter(value, MathDisplay::Block)
+            else {
+                // hName/hProperties on math affect the outer <pre>; the inner
+                // <code> is left as-is. hChildren replaces all children.
+                let action = open_h_element(builder, view, node_id, "pre", &[]);
+                copy_position(node_id, view, builder);
+                if matches!(action, ChildrenAction::Replaced) {
+                    builder.close_node();
+                    return;
+                }
+                let class_ref = builder.alloc_string("language-math math-display");
+                let props = build_props(builder, &[("className", PROP_SPACE_SEP, class_ref)]);
+                open_element_with_props(builder, "code", &props);
+                add_text_node(builder, value);
+                builder.close_node(); // code
+                builder.close_node(); // pre
+                return;
+            };
             let id = add_raw_node(builder, &mathml);
             copy_position_to(id, node_id, view, builder);
         }
@@ -1413,10 +1427,23 @@ fn convert_node(
             let value = view.get_str(math_data.value);
 
             let math_converter = LatexToMathML::default();
-            // TODO: handle error
-            let mathml = math_converter
-                .convert_with_local_counter(value, MathDisplay::Inline)
-                .unwrap();
+            let Ok(mathml) = math_converter.convert_with_local_counter(value, MathDisplay::Inline)
+            else {
+                let class_ref = builder.alloc_string("language-math math-inline");
+                let action = open_h_element(
+                    builder,
+                    view,
+                    node_id,
+                    "code",
+                    &[("className", PROP_SPACE_SEP, class_ref)],
+                );
+                copy_position(node_id, view, builder);
+                if matches!(action, ChildrenAction::Recurse) {
+                    add_text_node(builder, value);
+                }
+                builder.close_node();
+                return;
+            };
             let id = add_raw_node(builder, &mathml);
             copy_position_to(id, node_id, view, builder);
         }
